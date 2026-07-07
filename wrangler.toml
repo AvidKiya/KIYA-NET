@@ -1,16 +1,15 @@
 name = "kiya-net"
 compatibility_date = "2025-04-01"
 compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = ".vercel/output/static"
 
 # ========================
 # ENVIRONMENT VARIABLES
 # ========================
 [vars]
-NEXT_PUBLIC_APP_URL = "https://kiya-net.pages.dev"
+NEXT_PUBLIC_APP_URL = "https://kiya-net.workers.dev"
 
 # ========================
-# ENVIRONMENT VARIABLES (Production)
+# PRODUCTION
 # ========================
 [env.production]
-vars = { NEXT_PUBLIC_APP_URL = "https://kiya-net.pages.dev" }
+vars = { NEXT_PUBLIC_APP_URL = "https://kiya-net.workers.dev" }
