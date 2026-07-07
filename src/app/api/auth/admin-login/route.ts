@@ -4,6 +4,7 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createToken, setSessionCookie } from "@/lib/auth";
 
+export const runtime = "edge";
 const DEFAULT_PASSWORD = "AvidKiya*2397*7370#";
 
 export async function POST(req: NextRequest) {

@@ -4,6 +4,7 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
 
+export const runtime = "edge";
 export async function POST(req: NextRequest) {
   try {
     const session = await getCurrentUser();

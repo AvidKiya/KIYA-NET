@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { isAdminAuthorized } from "@/lib/adminAuth";
 
 export const dynamic = "force-dynamic";
+export const runtime = "edge";
 
 export async function GET(
   request: NextRequest,

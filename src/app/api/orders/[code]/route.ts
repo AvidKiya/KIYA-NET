@@ -6,6 +6,7 @@ import { updateOrderSchema } from "@/lib/validation";
 import { isAdminAuthorized } from "@/lib/adminAuth";
 
 export const dynamic = "force-dynamic";
+export const runtime = "edge";
 
 async function getOrderByCode(code: string) {
   const [order] = await db

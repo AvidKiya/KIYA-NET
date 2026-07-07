@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { sql } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
+export const runtime = "edge";
 
 export async function GET() {
   try {
