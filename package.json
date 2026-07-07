@@ -9,7 +9,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^0.10.4",
     "@react-pdf/renderer": "^4.5.1",
+    "@types/pg": "^8.18.0",
+    "@types/ws": "^8.5.13",
     "dotenv": "17.3.1",
     "drizzle-orm": "0.45.2",
     "framer-motion": "^12.42.2",
@@ -17,17 +20,19 @@
     "lucide-react": "^1.23.0",
     "nanoid": "^5.1.16",
     "next": "16.2.6",
-    "pg": "8.20.0",
+    "pg": "^8.20.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "sonner": "^2.0.7",
     "uuid": "^14.0.1",
+    "ws": "^8.18.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@cloudflare/next-on-pages": "^1.13.7",
+    "@cloudflare/workers-types": "^4.20250408.0",
     "@tailwindcss/postcss": "4.1.17",
     "@types/node": "22.19.15",
-    "@types/pg": "8.18.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "drizzle-kit": "0.31.10",
