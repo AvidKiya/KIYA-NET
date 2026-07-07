@@ -4,7 +4,6 @@ import { walletTransactions } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
 
-export const runtime = "edge";
 export async function GET() {
   try {
     const session = await getCurrentUser();

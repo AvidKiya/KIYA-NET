@@ -4,7 +4,6 @@ import { users, otpCodes } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 
-export const runtime = "edge";
 export async function POST(req: NextRequest) {
   try {
     const { phoneNumber } = await req.json();

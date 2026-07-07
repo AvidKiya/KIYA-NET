@@ -4,7 +4,6 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-export const runtime = "edge";
 export async function GET() {
   try {
     const session = await getCurrentUser();

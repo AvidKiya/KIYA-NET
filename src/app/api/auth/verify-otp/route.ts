@@ -5,7 +5,6 @@ import { eq, and, desc } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import { createToken, setSessionCookie } from "@/lib/auth";
 
-export const runtime = "edge";
 export async function POST(req: NextRequest) {
   try {
     const { phoneNumber, code } = await req.json();

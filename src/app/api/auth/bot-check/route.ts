@@ -3,7 +3,6 @@ import { db } from "@/db";
 import { otpCodes } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 
-export const runtime = "edge";
 export async function GET(req: NextRequest) {
   try {
     const phone = req.nextUrl.searchParams.get("phone");

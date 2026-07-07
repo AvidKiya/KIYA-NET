@@ -5,7 +5,6 @@ import { eq } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import { createToken, setSessionCookie } from "@/lib/auth";
 
-export const runtime = "edge";
 export async function GET() {
   try {
     // In production, this would redirect to Google OAuth consent screen

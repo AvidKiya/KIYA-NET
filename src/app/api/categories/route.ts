@@ -3,7 +3,6 @@ import { db } from "@/db";
 import { serviceCategories } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 
-export const runtime = "edge";
 export async function GET() {
   try {
     const categories = await db

@@ -5,7 +5,6 @@ import { eq } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import { getCurrentUser } from "@/lib/auth";
 
-export const runtime = "edge";
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

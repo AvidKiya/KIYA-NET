@@ -4,7 +4,6 @@ import { contactMessages } from "@/db/schema";
 import { contactSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
-export const runtime = "edge";
 
 export async function POST(request: NextRequest) {
   let payload: unknown;
