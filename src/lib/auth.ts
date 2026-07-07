@@ -2,7 +2,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "kiya-net-super-secret-key-1405-change-in-production"
+  process.env.JWT_SECRET || "change-this-in-production-secret-key-min-32-chars"
 );
 
 const SESSION_COOKIE = "kiya_session";

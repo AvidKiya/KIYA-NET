@@ -1,5 +1,5 @@
 {
-  "name": "nextjs-postgresql-template",
+  "name": "kiya-net",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -19,7 +19,7 @@
     "jose": "^6.2.3",
     "lucide-react": "^1.23.0",
     "nanoid": "^5.1.16",
-    "next": "16.2.6",
+    "next": "15.5.2",
     "pg": "^8.20.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
@@ -37,7 +37,7 @@
     "@types/react-dom": "19.2.3",
     "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
-    "eslint-config-next": "16.2.6",
+    "eslint-config-next": "15.5.2",
     "postcss": "8.5.8",
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3"
