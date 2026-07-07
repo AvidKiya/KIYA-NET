@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Award, Globe2, HeartHandshake, Rocket, ShieldCheck, Sparkles } from "lucide-react";
 import { GlassCard } from "@/components/GlassCard";
+import { SiteHeader } from "@/components/SiteHeader";
 
 export const metadata: Metadata = {
   title: "درباره ما | کیانت",
@@ -23,6 +24,8 @@ const TIMELINE = [
 
 export default function AboutPage() {
   return (
+    <>
+      <SiteHeader />
     <div className="mx-auto max-w-6xl px-3 pb-24 pt-10 sm:px-6">
       <section className="grid items-center gap-10 lg:grid-cols-[1fr_0.9fr]">
         <div>
@@ -34,10 +37,10 @@ export default function AboutPage() {
           </h1>
           <p className="mt-5 text-sm leading-8 text-[var(--ink-dim)] sm:text-base">
             «کیانت» (KIYA NET) توسط <span className="font-bold text-[var(--ink)]">اوید کیا</span> راه‌اندازی
-            شده؛ جایی که به‌جای اجاره یک مغازه فیزیکی، تمام تجربه یک کافی‌نت واقعی — از تایپ و پرینت
-            گرفته تا ثبت‌نام‌های اینترنتی و طراحی — به‌صورت کاملاً آنلاین در اختیار مشتری‌ها قرار می‌گیرد.
+            شده؛ جایی که به‌جای اجاره یک مغازه فیزیکی، تمام تجربه یک کافی‌نت واقعی — از امور اداری، دانشگاهی و قضایی
+            گرفته تا طراحی گرافیک و چاپ حرفه‌ای — به‌صورت کاملاً آنلاین در اختیار مشتری‌ها قرار می‌گیرد.
             هدف ما ساده است: هرکسی، هر زمان و هر جایی، بتونه بدون مراجعه حضوری، کارهای اداری و
-            دیجیتالی‌شو با کیفیت بالا انجام بده و فایل نهایی رو به‌صورت PDF دریافت کنه.
+            دیجیتالی‌شو با کیفیت بالا و پشتیبانی ۲۴ ساعته انجام بده و فایل نهایی رو تحویل بگیره.
           </p>
         </div>
 
@@ -62,7 +65,7 @@ export default function AboutPage() {
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {VALUES.map((v) => (
             <GlassCard key={v.title} className="card-hover p-6 text-center">
-              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-emerald-300">
+              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400/25 to-violet-500/20 text-emerald-300">
                 <v.icon size={19} />
               </div>
               <h3 className="mt-4 text-sm font-bold text-[var(--ink)]">{v.title}</h3>
@@ -117,5 +120,6 @@ export default function AboutPage() {
         </GlassCard>
       </section>
     </div>
+    </>
   );
 }

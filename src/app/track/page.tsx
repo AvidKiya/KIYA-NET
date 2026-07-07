@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { TrackOrder } from "@/components/TrackOrder";
+import { SiteHeader } from "@/components/SiteHeader";
 
 export const metadata: Metadata = {
   title: "پیگیری سفارش | کیانت",
@@ -9,6 +10,8 @@ export const metadata: Metadata = {
 
 export default function TrackPage() {
   return (
+    <>
+      <SiteHeader />
     <div className="mx-auto max-w-6xl px-3 pb-24 pt-10 sm:px-6">
       <div className="mb-10 text-center">
         <span className="glass inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium text-[var(--ink-dim)]">
@@ -25,5 +28,6 @@ export default function TrackPage() {
         <TrackOrder />
       </Suspense>
     </div>
+    </>
   );
 }

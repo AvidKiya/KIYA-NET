@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { OrderForm } from "@/components/OrderForm";
+import { SiteHeader } from "@/components/SiteHeader";
 
 export const metadata: Metadata = {
   title: "ثبت سفارش | کیانت",
@@ -9,6 +10,8 @@ export const metadata: Metadata = {
 
 export default function OrderPage() {
   return (
+    <>
+      <SiteHeader />
     <div className="mx-auto max-w-6xl px-3 pb-24 pt-10 sm:px-6">
       <div className="mb-10 text-center">
         <span className="glass inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium text-[var(--ink-dim)]">
@@ -22,5 +25,6 @@ export default function OrderPage() {
         <OrderForm />
       </Suspense>
     </div>
+    </>
   );
 }

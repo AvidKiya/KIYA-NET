@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Clock3, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import { GlassCard } from "@/components/GlassCard";
 import { ContactForm } from "@/components/ContactForm";
+import { SiteHeader } from "@/components/SiteHeader";
 
 export const metadata: Metadata = {
   title: "تماس با ما | کیانت",
@@ -17,6 +18,8 @@ const CONTACT_ITEMS = [
 
 export default function ContactPage() {
   return (
+    <>
+      <SiteHeader />
     <div className="mx-auto max-w-6xl px-3 pb-24 pt-10 sm:px-6">
       <div className="mb-10 text-center">
         <span className="glass inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium text-[var(--ink-dim)]">
@@ -34,7 +37,7 @@ export default function ContactPage() {
         <div className="flex flex-col gap-4">
           {CONTACT_ITEMS.map((item) => (
             <GlassCard key={item.title} className="flex items-center gap-4 p-5">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-emerald-300">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400/25 to-violet-500/20 text-emerald-300">
                 <item.icon size={19} />
               </div>
               <div>
@@ -51,12 +54,12 @@ export default function ContactPage() {
           ))}
 
           <GlassCard className="flex items-center gap-4 p-5">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-emerald-300">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400/25 to-violet-500/20 text-emerald-300">
               <Clock3 size={19} />
             </div>
             <div>
               <p className="text-xs text-[var(--ink-dim)]">ساعات پاسخ‌گویی</p>
-              <p className="text-sm font-bold text-[var(--ink)]">هر روز هفته، ۹ صبح تا ۱۲ شب</p>
+              <p className="text-sm font-bold text-[var(--ink)]">۲۴ ساعته (۷ روز هفته، بدون تعطیلی)</p>
             </div>
           </GlassCard>
         </div>
@@ -67,5 +70,6 @@ export default function ContactPage() {
         </GlassCard>
       </div>
     </div>
+    </>
   );
 }

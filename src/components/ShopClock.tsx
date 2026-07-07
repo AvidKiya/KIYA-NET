@@ -73,23 +73,26 @@ export function ShopClock() {
   });
   const { year, month, day } = toJalali(now);
 
+  const hour12 = tehranHour % 12 === 0 ? 12 : tehranHour % 12;
+  const period = tehranHour < 5 ? "بامداد" : tehranHour < 12 ? "صبح" : tehranHour === 12 ? "ظهر" : tehranHour < 18 ? "عصر" : "شب";
+
   return (
     <div>
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-medium text-emerald-300">
           <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-emerald-400" />
-          {isOpen ? "کیانت الان باز است" : "خارج از ساعت پاسخ‌گویی"}
+          ۲۴/۷ آنلاین (همیشه باز)
         </span>
         <span className="text-[11px] text-[var(--ink-dim)]">Asia/Tehran</span>
       </div>
-      <p className="mt-4 text-center font-mono text-4xl font-bold tracking-wider text-[var(--ink)] sm:text-5xl">
+      <p className="mt-4 text-center font-[family-name:var(--font-vazir)] text-4xl font-bold tracking-wider text-[var(--ink)] sm:text-5xl">
         {toPersianDigits(timeStr)}
       </p>
       <p className="mt-2 text-center text-sm text-[var(--ink-dim)]">
         {toPersianDigits(day)} {JALALI_MONTHS[month - 1]} {toPersianDigits(year)}
       </p>
       <p className="mt-1 text-center text-[11px] text-[var(--ink-dim)]" suppressHydrationWarning>
-        ساعت {toPersianDigits(tehranHour)} — پاسخ‌گویی آنلاین ۹ صبح تا ۱۲ شب، هر روز هفته
+        ساعت {toPersianDigits(hour12)} {period} — کافی‌نت آنلاین ۲۴/۷
       </p>
     </div>
   );

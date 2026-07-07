@@ -4,7 +4,8 @@ import { ArrowLeft, Clock3 } from "lucide-react";
 import { GlassCard } from "@/components/GlassCard";
 import { ServiceIcon } from "@/components/ServiceIcon";
 import { formatToman } from "@/lib/format";
-import { serviceCategories } from "@/lib/services";
+import { serviceCategories, prdCategories } from "@/lib/services";
+import { SiteHeader } from "@/components/SiteHeader";
 
 export const metadata: Metadata = {
   title: "خدمات کیانت | کافی‌نت آنلاین",
@@ -13,13 +14,15 @@ export const metadata: Metadata = {
 
 export default function ServicesPage() {
   return (
+    <>
+      <SiteHeader />
     <div className="mx-auto max-w-6xl px-3 pb-24 pt-10 sm:px-6">
       <div className="text-center">
         <span className="glass inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium text-[var(--ink-dim)]">
           دفترچه خدمات کیانت
         </span>
         <h1 className="mt-5 text-[clamp(1.9rem,4.5vw,3rem)] font-extrabold leading-tight text-[var(--ink)]">
-          همه خدمات یک کافی‌نت واقعی، آنلاین
+          همه خدمات تخصصی کافی‌نت و دولت الکترونیک، آنلاین و غیرحضوری
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-[var(--ink-dim)] sm:text-base">
           خدمت موردنظرتون رو پیدا کنید، قیمت و زمان تحویلش رو ببینید و مستقیم سفارش بدید.
@@ -43,7 +46,7 @@ export default function ServicesPage() {
         {serviceCategories.map((category) => (
           <section key={category.slug} id={category.slug} className="scroll-mt-28">
             <div className="flex flex-wrap items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-emerald-300">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400/25 to-violet-500/20 text-emerald-300">
                 <ServiceIcon name={category.icon} size={22} />
               </div>
               <div>
@@ -85,5 +88,6 @@ export default function ServicesPage() {
         ))}
       </div>
     </div>
+    </>
   );
 }

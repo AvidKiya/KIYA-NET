@@ -19,7 +19,7 @@ import {
 import { GlassCard } from "@/components/GlassCard";
 import { ServiceIcon } from "@/components/ServiceIcon";
 import { formatToman } from "@/lib/format";
-import { serviceCategories } from "@/lib/services";
+import { serviceCategories, prdCategories } from "@/lib/services";
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
@@ -39,11 +39,12 @@ type SuccessState = {
 
 export function OrderForm() {
   const searchParams = useSearchParams();
-  const initialCategory = searchParams.get("category") ?? serviceCategories[0].slug;
-  const initialService =
-    searchParams.get("service") ??
-    serviceCategories.find((c) => c.slug === initialCategory)?.items[0]?.slug ??
-    "";
+  const allCatsInit = [...serviceCategories, ...prdCategories];
+  const initialCategory = searchParams.get("category") ?? allCatsInit[0]?.slug ?? "";
+  const initialServiceParam = searchParams.get("service");
+  const initialService = initialServiceParam
+    ? (allCatsInit.find((c) => c.slug === initialCategory)?.items.find((i) => i.slug === initialServiceParam || String(i.price) === initialServiceParam || String((i as any).id) === initialServiceParam)?.slug ?? initialServiceParam)
+    : allCatsInit.find((c) => c.slug === initialCategory)?.items[0]?.slug ?? "";
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [categorySlug, setCategorySlug] = useState(initialCategory);
@@ -60,9 +61,10 @@ export function OrderForm() {
   const [success, setSuccess] = useState<SuccessState | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const allCategories = useMemo(() => [...serviceCategories, ...prdCategories], []);
   const category = useMemo(
-    () => serviceCategories.find((c) => c.slug === categorySlug) ?? serviceCategories[0],
-    [categorySlug],
+    () => allCategories.find((c) => c.slug === categorySlug) ?? allCategories[0] ?? serviceCategories[0],
+    [categorySlug, allCategories],
   );
   const service = useMemo(
     () => category.items.find((i) => i.slug === serviceSlug) ?? category.items[0],
@@ -235,7 +237,7 @@ export function OrderForm() {
           <div className="mt-6">
             <label className="mb-2 block text-xs font-medium text-[var(--ink-dim)]">دسته‌بندی خدمت</label>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {serviceCategories.map((c) => (
+              {[...serviceCategories, ...prdCategories].slice(0, 13).map((c) => (
                 <button
                   type="button"
                   key={c.slug}
@@ -401,7 +403,7 @@ export function OrderForm() {
               </label>
             </div>
 
-            <label className="mt-4 flex items-center gap-2.5 rounded-xl bg-amber-400/10 px-4 py-3 text-xs text-amber-200">
+            <label className="mt-4 flex items-center gap-2.5 rounded-xl bg-amber-400/10 px-4 py-3 text-xs font-medium">
               <input
                 type="checkbox"
                 checked={urgent}

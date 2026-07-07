@@ -15,15 +15,20 @@ export async function POST(request: NextRequest) {
 
   const parsed = contactSchema.safeParse(payload);
   if (!parsed.success) {
-    const message = parsed.error.issues[0]?.message ?? "اطلاعات نامعتبر است.";
+    const message = parsed.error.issues[0]?.message ?? "اطلاعات ارسالی نامعتبر است.";
     return NextResponse.json({ ok: false, error: message }, { status: 400 });
   }
 
+  const input = parsed.data;
   try {
-    await db.insert(contactMessages).values(parsed.data);
-    return NextResponse.json({ ok: true });
+    await db.insert(contactMessages).values({
+      name: input.name,
+      phone: input.phone,
+      message: input.message,
+    });
+    return NextResponse.json({ ok: true }, { status: 201 });
   } catch (error) {
-    console.error("Failed to save contact message", error);
+    console.error("Contact message error", error);
     return NextResponse.json({ ok: false, error: "ارسال پیام با خطا مواجه شد." }, { status: 500 });
   }
 }

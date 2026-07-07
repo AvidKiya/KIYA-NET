@@ -1,99 +1,193 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { orders } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
-import { createOrderSchema } from "@/lib/validation";
-import { generateTrackingCode } from "@/lib/format";
-import { findService } from "@/lib/services";
-import { isAdminAuthorized } from "@/lib/adminAuth";
+import { orders, services, users } from "@/db/schema";
+import { eq, desc, and } from "drizzle-orm";
+import { v4 as uuid } from "uuid";
+import { getCurrentUser } from "@/lib/auth";
 
-export const dynamic = "force-dynamic";
-
-const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024; // ~5MB decoded
-
-export async function POST(request: NextRequest) {
-  let payload: unknown;
+export async function GET(req: NextRequest) {
   try {
-    payload = await request.json();
-  } catch {
-    return NextResponse.json({ ok: false, error: "بدنه درخواست نامعتبر است." }, { status: 400 });
-  }
+    const session = await getCurrentUser();
+    if (!session) {
+      return NextResponse.json({ error: "لطفاً وارد شوید" }, { status: 401 });
+    }
 
-  const parsed = createOrderSchema.safeParse(payload);
-  if (!parsed.success) {
-    const message = parsed.error.issues[0]?.message ?? "اطلاعات ارسالی نامعتبر است.";
-    return NextResponse.json({ ok: false, error: message }, { status: 400 });
-  }
+    const { searchParams } = new URL(req.url);
+    const statusParam = searchParams.get("status");
 
-  const input = parsed.data;
-  const { category, service } = findService(input.categorySlug, input.serviceSlug);
-  if (!category || !service) {
-    return NextResponse.json({ ok: false, error: "خدمت انتخاب‌شده معتبر نیست." }, { status: 400 });
-  }
+    const validStatuses = [
+      "PENDING_ASSIGNMENT",
+      "UNDER_REVIEW",
+      "NEEDS_INFO",
+      "IN_PROGRESS",
+      "COMPLETED",
+      "CANCELLED",
+    ] as const;
 
-  if (input.attachment) {
-    const approxBytes = Math.floor((input.attachment.data.length * 3) / 4);
-    if (approxBytes > MAX_ATTACHMENT_BYTES) {
-      return NextResponse.json(
-        { ok: false, error: "حجم فایل پیوست نباید بیشتر از ۵ مگابایت باشد." },
-        { status: 413 },
+    let conditions: ReturnType<typeof eq>[] = [];
+    if (session.role === "CUSTOMER") {
+      conditions.push(eq(orders.userId, session.userId));
+    } else if (session.role === "OPERATOR") {
+      if (statusParam === "PENDING_ASSIGNMENT") {
+        conditions.push(eq(orders.status, "PENDING_ASSIGNMENT" as const));
+      } else {
+        conditions.push(eq(orders.operatorId, session.userId));
+      }
+    }
+
+    if (
+      statusParam &&
+      session.role !== "OPERATOR" &&
+      validStatuses.includes(statusParam as typeof validStatuses[number])
+    ) {
+      conditions.push(
+        eq(orders.status, statusParam as typeof validStatuses[number])
       );
     }
-  }
 
-  const urgentMultiplier = input.urgent ? 1.3 : 1;
-  const estimatedPrice = Math.round(service.price * input.quantity * urgentMultiplier);
-
-  let trackingCode = generateTrackingCode();
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const existing = await db
-      .select({ id: orders.id })
-      .from(orders)
-      .where(eq(orders.trackingCode, trackingCode))
-      .limit(1);
-    if (existing.length === 0) break;
-    trackingCode = generateTrackingCode();
-  }
-
-  try {
-    const [created] = await db
-      .insert(orders)
-      .values({
-        trackingCode,
-        categorySlug: category.slug,
-        categoryTitle: category.title,
-        serviceSlug: service.slug,
-        serviceTitle: service.title,
-        fullName: input.fullName,
-        phone: input.phone.replace(/^0?9/, "09"),
-        email: input.email || null,
-        description: input.description,
-        quantity: input.quantity,
-        urgent: input.urgent,
-        estimatedPrice,
-        attachmentName: input.attachment?.name ?? null,
-        attachmentMime: input.attachment?.mime ?? null,
-        attachmentData: input.attachment?.data ?? null,
-        status: "pending",
+    const data = await db
+      .select({
+        id: orders.id,
+        userId: orders.userId,
+        operatorId: orders.operatorId,
+        serviceId: orders.serviceId,
+        status: orders.status,
+        totalAmount: orders.totalAmount,
+        paymentStatus: orders.paymentStatus,
+        paymentMethod: orders.paymentMethod,
+        userNotes: orders.userNotes,
+        adminNotes: orders.adminNotes,
+        finalOutputFile: orders.finalOutputFile,
+        shippingTrackingCode: orders.shippingTrackingCode,
+        completedAt: orders.completedAt,
+        createdAt: orders.createdAt,
+        serviceName: services.serviceName,
+        serviceCategoryColor: services.categoryId,
+        customerPhone: users.phoneNumber,
+        customerName: users.firstName,
       })
-      .returning();
+      .from(orders)
+      .leftJoin(services, eq(orders.serviceId, services.id))
+      .leftJoin(users, eq(orders.userId, users.id))
+      .where(and(...conditions))
+      .orderBy(desc(orders.createdAt));
 
-    return NextResponse.json({ ok: true, order: sanitize(created) }, { status: 201 });
+    return NextResponse.json({ orders: data });
   } catch (error) {
-    console.error("Failed to create order", error);
-    return NextResponse.json({ ok: false, error: "ثبت سفارش با خطا مواجه شد." }, { status: 500 });
+    console.error("Orders error:", error);
+    return NextResponse.json({ error: "خطا در بارگذاری سفارش‌ها" }, { status: 500 });
   }
 }
 
-export async function GET(request: NextRequest) {
-  if (!isAdminAuthorized(request)) {
-    return NextResponse.json({ ok: false, error: "دسترسی غیرمجاز." }, { status: 401 });
+export async function POST(req: NextRequest) {
+  try {
+    const session = await getCurrentUser();
+    if (!session) {
+      return NextResponse.json({ error: "لطفاً وارد شوید" }, { status: 401 });
+    }
+
+    const { serviceId, userNotes } = await req.json();
+
+    if (!serviceId) {
+      return NextResponse.json({ error: "خدمت انتخاب نشده است" }, { status: 400 });
+    }
+
+    // Get service price
+    const service = await db
+      .select()
+      .from(services)
+      .where(eq(services.id, serviceId))
+      .limit(1)
+      .then((rows) => rows[0]);
+
+    if (!service) {
+      return NextResponse.json({ error: "خدمت یافت نشد" }, { status: 404 });
+    }
+
+    // Get user
+    const user = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, session.userId))
+      .limit(1)
+      .then((rows) => rows[0]);
+
+    if (!user) {
+      return NextResponse.json({ error: "کاربر یافت نشد" }, { status: 404 });
+    }
+
+    const orderId = `KIYA-${Math.floor(Math.random() * 9000) + 1000}`;
+    const totalAmount = parseFloat(service.kiyanetPrice);
+
+    // Check wallet balance
+    const walletBalance = parseFloat(user.walletBalance || "0");
+    let paymentStatus: "PAID" | "PENDING" = "PENDING";
+    let paymentMethod: "WALLET" | "ONLINE_GATEWAY" | null = null;
+
+    if (walletBalance >= totalAmount) {
+      // Auto-pay from wallet
+      await db
+        .update(users)
+        .set({ walletBalance: (walletBalance - totalAmount).toFixed(2) })
+        .where(eq(users.id, user.id));
+
+      // Record wallet transaction
+      const { walletTransactions } = await import("@/db/schema");
+      await db.insert(walletTransactions).values({
+        id: uuid(),
+        userId: user.id,
+        amount: (-totalAmount).toFixed(2),
+        type: "PAYMENT",
+        orderId,
+        description: `پرداخت بابت سفارش ${orderId} - ${service.serviceName}`,
+      });
+
+      paymentStatus = "PAID";
+      paymentMethod = "WALLET";
+    }
+
+    await db.insert(orders).values({
+      id: orderId,
+      userId: user.id,
+      serviceId,
+      status: "PENDING_ASSIGNMENT",
+      totalAmount: totalAmount.toFixed(2),
+      paymentStatus,
+      paymentMethod,
+      userNotes,
+    });
+
+    // Create notification for admins/operators
+    const { notifications } = await import("@/db/schema");
+
+    // Find operators
+    const operators = await db
+      .select()
+      .from(users)
+      .where(eq(users.role, "OPERATOR"));
+
+    for (const op of operators) {
+      await db.insert(notifications).values({
+        id: uuid(),
+        userId: op.id,
+        title: "سفارش جدید",
+        message: `سفارش جدید ${orderId} برای ${service.serviceName} ثبت شد`,
+        orderId,
+      });
+    }
+
+    return NextResponse.json({
+      success: true,
+      order: {
+        id: orderId,
+        totalAmount,
+        paymentStatus,
+        paymentMethod,
+        serviceName: service.serviceName,
+      },
+    });
+  } catch (error) {
+    console.error("Create order error:", error);
+    return NextResponse.json({ error: "خطا در ثبت سفارش" }, { status: 500 });
   }
-
-  const all = await db.select().from(orders).orderBy(desc(orders.createdAt));
-  return NextResponse.json({ ok: true, orders: all.map(sanitize) });
-}
-
-function sanitize<T extends { attachmentData: string | null }>(order: T) {
-  return { ...order, attachmentData: order.attachmentData ? true : null };
 }

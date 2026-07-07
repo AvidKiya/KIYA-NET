@@ -132,7 +132,7 @@ export function TrackOrder() {
             <p className="text-[var(--ink-dim)]">
               تاریخ ثبت: <span className="text-[var(--ink)]">{formatJalaliDateTime(new Date(order.createdAt))}</span>
             </p>
-            {order.urgent ? <p className="font-medium text-amber-300">سفارش فوری</p> : null}
+            {order.urgent ? <p className="font-bold text-amber-400">سفارش فوری</p> : null}
           </div>
 
           {isCancelled ? (

@@ -24,8 +24,7 @@ export function SiteFooter() {
               <span className="font-bold text-[var(--ink)]">کیانت | KIYA NET</span>
             </div>
             <p className="mt-4 text-sm leading-7 text-[var(--ink-dim)]">
-              اولین کافی‌نت کاملاً مجازی؛ سفارش می‌دهید، ما با دقت انجام می‌دهیم و فایل نهایی را
-              به‌صورت PDF برای شما ارسال می‌کنیم.
+              اولین کافی‌نت کاملاً مجازی و ۲۴ ساعته؛ امور اداری، دانشگاهی، قضایی، مالیاتی، طراحی گرافیک و چاپ حرفه‌ای — سفارش می‌دهید، ما با دقت انجام می‌دهیم و خروجی یا فایل نهایی را تحویل می‌گیرید.
             </p>
           </div>
 
@@ -42,10 +41,10 @@ export function SiteFooter() {
           <div>
             <h4 className="mb-4 text-sm font-bold text-[var(--ink)]">دسته‌بندی‌ها</h4>
             <ul className="space-y-2.5 text-sm text-[var(--ink-dim)]">
-              <li>تایپ و ویرایش متن</li>
-              <li>چاپ، اسکن و تکثیر مجازی</li>
-              <li>ثبت‌نام‌های اینترنتی</li>
-              <li>طراحی، گرافیک و ترجمه</li>
+              <li><Link className="transition-colors hover:text-[var(--ink)]" href="/services#judicial">امور قضایی و حقوقی</Link></li>
+              <li><Link className="transition-colors hover:text-[var(--ink)]" href="/services#university">دانشگاه، کنکور و آزمون‌ها</Link></li>
+              <li><Link className="transition-colors hover:text-[var(--ink)]" href="/services#tax">مالیات، اصناف و درگاه ملی</Link></li>
+              <li><Link className="transition-colors hover:text-[var(--ink)]" href="/services#design-print">طراحی گرافیک و چاپ حرفه‌ای</Link></li>
             </ul>
           </div>
 
@@ -62,7 +61,7 @@ export function SiteFooter() {
                 <InstagramGlyph />
               </a>
             </div>
-            <p className="mt-4 text-xs text-[var(--ink-dim)]">پاسخگویی آنلاین: هر روز ۹ صبح تا ۱۲ شب</p>
+            <p className="mt-4 text-xs text-[var(--ink-dim)]">پاسخ‌گویی و ثبت سفارش آنلاین: ۲۴ ساعته (۷ روز هفته)</p>
           </div>
         </div>
 
