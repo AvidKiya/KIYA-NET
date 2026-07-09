@@ -115,6 +115,7 @@ npx @cloudflare/next-on-pages  # بیلد برای Cloudflare Pages
 | [`docs/TUTORIAL.md`](docs/TUTORIAL.md) | آموزش گام‌به‌گام مدیر، اپراتور، مشتری و PWA |
 | [`docs/CLOUDFLARE-DEPLOYMENT.md`](docs/CLOUDFLARE-DEPLOYMENT.md) | راهنمای دیپلوی روی Cloudflare Pages |
 | [`docs/E2E-TESTING.md`](docs/E2E-TESTING.md) | چک‌لیست و نتایج تست End-to-End |
+| [`docs/AUDIT-AND-FIXES.md`](docs/AUDIT-AND-FIXES.md) | گزارش بازبینی و رفع باگ‌های بحرانی |
 | [`گزارش-کار.md`](گزارش-کار.md) | گزارش فنی و تاریخچه پیشرفت پروژه |
 
 ---

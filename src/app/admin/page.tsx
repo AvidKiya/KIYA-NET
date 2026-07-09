@@ -6,7 +6,7 @@ import {
   Shield, Users, LayoutDashboard, ListOrdered, Settings, CheckCircle2, Clock, Loader2,
   AlertCircle, XCircle, RefreshCcw, UserCheck, Wallet, Save, Edit3, X, Lock, KeyRound,
   Plus, Trash2, BadgePercent, CreditCard, Banknote, Upload, Search, ArrowLeft, LogOut,
-  Bot, MessageCircle, Send,
+  Bot, MessageCircle, Send, Newspaper, Gamepad2,
 } from "lucide-react";
 import { GlassCard } from "@/components/GlassCard";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -64,10 +64,32 @@ export default function AdminPage() {
   const [newOpModules, setNewOpModules] = useState<string[]>([]);
   const [newOpCommission, setNewOpCommission] = useState("10");
   const [showAddOp, setShowAddOp] = useState(false);
+  const [editingOpId, setEditingOpId] = useState<string | null>(null);
+  const [opActionMsg, setOpActionMsg] = useState<string | null>(null);
 
   // Payment requests
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawNote, setWithdrawNote] = useState("");
+  const [withdrawMsg, setWithdrawMsg] = useState<string | null>(null);
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
+  const [withdrawalsLoading, setWithdrawalsLoading] = useState(false);
+  const [withdrawFilter, setWithdrawFilter] = useState("all");
+  const [withdrawRejectReason, setWithdrawRejectReason] = useState("");
+  const [withdrawRejectingId, setWithdrawRejectingId] = useState<string | null>(null);
+  const [withdrawReceiptUrl, setWithdrawReceiptUrl] = useState("");
+  const [withdrawAdminNote, setWithdrawAdminNote] = useState("");
+
+  // News feeds
+  const [newsFeeds, setNewsFeeds] = useState<any[]>([]);
+  const [newsFeedsLoading, setNewsFeedsLoading] = useState(false);
+  const [newsForm, setNewsForm] = useState({ sourceName: "", rssUrl: "", category: "عمومی" });
+  const [newsMsg, setNewsMsg] = useState<string | null>(null);
+
+  // Game config
+  const [gameConfigRows, setGameConfigRows] = useState<any[]>([]);
+  const [gameConfigLoading, setGameConfigLoading] = useState(false);
+  const [gameForm, setGameForm] = useState({ key: "", value: "" });
+  const [gameMsg, setGameMsg] = useState<string | null>(null);
 
   // Bot management
   const [telegramToken, setTelegramToken] = useState("");
@@ -120,6 +142,9 @@ export default function AdminPage() {
   useEffect(() => {
     if (tab === "receipts") loadReceipts();
     if (tab === "settings") loadPaymentSettings();
+    if (tab === "payments") loadWithdrawals();
+    if (tab === "news") loadNewsFeeds();
+    if (tab === "games") loadGameConfig();
   }, [tab]);
 
   const handleLogin = async () => {
@@ -151,22 +176,75 @@ export default function AdminPage() {
   const assignToMe = async (id: string) => { await fetch(`/api/orders/${id}/assign`, { method: "POST" }); loadData(); };
   const changeStatus = async (id: string, st: string) => { await fetch(`/api/orders/${id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: st }) }); loadData(); };
 
-  const savePrice = () => {
+  const savePrice = async () => {
     if (!editingSvc) return;
     const discount = Number(editDiscount) || 0;
     const official = Number(editingSvc.officialPrice);
     const kiyanet = Math.round(official * (1 - discount / 100));
-    setSvcs(prev => prev.map(s => s.id === editingSvc.id ? { ...s, kiyanetPrice: String(kiyanet) } : s));
-    setEditingSvc(null);
+    const updated = { ...editingSvc, discountPercent: String(discount), kiyanetPrice: String(kiyanet) };
+    try {
+      const res = await fetch("/api/cms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "upsert", table: "services", data: updated, recordId: editingSvc.id }),
+      });
+      const d = await res.json();
+      if (d.success) {
+        setSvcs(prev => prev.map(s => s.id === editingSvc.id ? updated : s));
+        setEditingSvc(null);
+      } else {
+        alert(d.error || "خطا در ذخیره قیمت");
+      }
+    } catch {
+      alert("خطا در ذخیره قیمت");
+    }
   };
 
   const addOperator = async () => {
     if (!newOpPhone) return;
     try {
-      await fetch("/api/admin/operators", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phoneNumber: newOpPhone, modules: newOpModules, commission: Number(newOpCommission) }) });
-      setShowAddOp(false); setNewOpPhone(""); setNewOpModules([]);
+      const res = await fetch("/api/admin/operators", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phoneNumber: newOpPhone, modules: newOpModules, commission: Number(newOpCommission) }) });
+      const d = await res.json();
+      setOpActionMsg(d.success ? (editingOpId ? "اپراتور بروزرسانی شد" : "اپراتور افزوده شد") : d.error || "خطا");
+      setShowAddOp(false); setNewOpPhone(""); setNewOpModules([]); setNewOpCommission("10"); setEditingOpId(null);
       loadData();
-    } catch {}
+      setTimeout(() => setOpActionMsg(null), 3000);
+    } catch {
+      setOpActionMsg("خطا در ذخیره اپراتور");
+    }
+  };
+
+  const startEditOperator = (op: any) => {
+    setEditingOpId(op.id);
+    setNewOpPhone(op.phoneNumber || "");
+    setNewOpModules(Array.isArray(op.assignedModules) ? op.assignedModules : []);
+    setNewOpCommission(String(op.commissionRate || "10"));
+    setShowAddOp(true);
+  };
+
+  const cancelEditOperator = () => {
+    setEditingOpId(null);
+    setNewOpPhone("");
+    setNewOpModules([]);
+    setNewOpCommission("10");
+    setShowAddOp(false);
+  };
+
+  const deleteOperator = async (op: any) => {
+    if (!confirm(`آیا مطمئنید که می‌خواهید دسترسی ${op.firstName || ""} ${op.lastName || ""} را حذف کنید؟`)) return;
+    try {
+      const res = await fetch("/api/admin/operators", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: op.id }),
+      });
+      const d = await res.json();
+      setOpActionMsg(d.success ? "دسترسی اپراتور حذف شد" : d.error || "خطا");
+      loadData();
+      setTimeout(() => setOpActionMsg(null), 3000);
+    } catch {
+      setOpActionMsg("خطا در حذف اپراتور");
+    }
   };
 
   const saveBotToken = async (platform: "telegram" | "bale") => {
@@ -208,6 +286,160 @@ export default function AdminPage() {
       setWebhookResult(prev => ({ ...prev, [platform]: "خطا در اتصال" }));
     } finally {
       setWebhookLoading(prev => ({ ...prev, [platform]: false }));
+    }
+  };
+
+  const submitWithdrawal = async () => {
+    if (!withdrawAmount || Number(withdrawAmount) <= 0) { setWithdrawMsg("مبلغ نامعتبر است"); return; }
+    try {
+      const res = await fetch("/api/wallet/withdraw", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: Number(withdrawAmount), note: withdrawNote }) });
+      const d = await res.json();
+      setWithdrawMsg(d.success ? "درخواست برداشت ثبت شد" : d.error || "خطا");
+      if (d.success) { setWithdrawAmount(""); setWithdrawNote(""); }
+      setTimeout(() => setWithdrawMsg(null), 3000);
+    } catch {
+      setWithdrawMsg("خطا در ثبت درخواست");
+    }
+  };
+
+  const loadWithdrawals = async () => {
+    setWithdrawalsLoading(true);
+    try {
+      const res = await fetch("/api/admin/withdrawals");
+      const d = await res.json();
+      if (d.withdrawals) setWithdrawals(d.withdrawals);
+    } catch {
+      setWithdrawals([]);
+    } finally {
+      setWithdrawalsLoading(false);
+    }
+  };
+
+  const approveWithdrawal = async (id: string) => {
+    try {
+      const res = await fetch(`/api/admin/withdrawals/${id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ receiptUrl: withdrawReceiptUrl, adminNote: withdrawAdminNote }),
+      });
+      const d = await res.json();
+      setWithdrawMsg(d.success ? "درخواست برداشت تأیید شد" : d.error || "خطا");
+      setWithdrawReceiptUrl(""); setWithdrawAdminNote(""); setWithdrawRejectingId(null);
+      loadWithdrawals();
+      setTimeout(() => setWithdrawMsg(null), 3000);
+    } catch {
+      setWithdrawMsg("خطا در تأیید برداشت");
+    }
+  };
+
+  const rejectWithdrawal = async (id: string) => {
+    if (!withdrawRejectReason.trim()) return;
+    try {
+      const res = await fetch(`/api/admin/withdrawals/${id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: withdrawRejectReason }),
+      });
+      const d = await res.json();
+      setWithdrawMsg(d.success ? "درخواست برداشت رد و مبلغ برگشت شد" : d.error || "خطا");
+      setWithdrawRejectingId(null); setWithdrawRejectReason("");
+      loadWithdrawals();
+      setTimeout(() => setWithdrawMsg(null), 3000);
+    } catch {
+      setWithdrawMsg("خطا در رد برداشت");
+    }
+  };
+
+  const loadNewsFeeds = async () => {
+    setNewsFeedsLoading(true);
+    try {
+      const res = await fetch("/api/admin/news-feeds");
+      const d = await res.json();
+      if (d.feeds) setNewsFeeds(d.feeds);
+    } catch {
+      setNewsFeeds([]);
+    } finally {
+      setNewsFeedsLoading(false);
+    }
+  };
+
+  const addNewsFeed = async () => {
+    if (!newsForm.sourceName || !newsForm.rssUrl || !newsForm.category) return;
+    try {
+      const res = await fetch("/api/admin/news-feeds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newsForm),
+      });
+      const d = await res.json();
+      setNewsMsg(d.success ? "منبع خبری افزوده شد" : d.error || "خطا");
+      if (d.success) { setNewsForm({ sourceName: "", rssUrl: "", category: "عمومی" }); loadNewsFeeds(); }
+      setTimeout(() => setNewsMsg(null), 3000);
+    } catch {
+      setNewsMsg("خطا در افزودن منبع خبری");
+    }
+  };
+
+  const deleteNewsFeed = async (id: number) => {
+    if (!confirm("آیا مطمئنید؟")) return;
+    try {
+      const res = await fetch("/api/admin/news-feeds", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const d = await res.json();
+      setNewsMsg(d.success ? "منبع خبری حذف شد" : d.error || "خطا");
+      loadNewsFeeds();
+      setTimeout(() => setNewsMsg(null), 3000);
+    } catch {
+      setNewsMsg("خطا در حذف منبع خبری");
+    }
+  };
+
+  const loadGameConfig = async () => {
+    setGameConfigLoading(true);
+    try {
+      const res = await fetch("/api/admin/game-config");
+      const d = await res.json();
+      if (d.config) setGameConfigRows(d.config);
+    } catch {
+      setGameConfigRows([]);
+    } finally {
+      setGameConfigLoading(false);
+    }
+  };
+
+  const saveGameConfig = async (key: string, value: any) => {
+    try {
+      const res = await fetch("/api/admin/game-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, value }),
+      });
+      const d = await res.json();
+      setGameMsg(d.success ? "تنظیمات بازی ذخیره شد" : d.error || "خطا");
+      loadGameConfig();
+      setTimeout(() => setGameMsg(null), 3000);
+    } catch {
+      setGameMsg("خطا در ذخیره تنظیمات بازی");
+    }
+  };
+
+  const deleteGameConfig = async (key: string) => {
+    if (!confirm("آیا مطمئنید؟")) return;
+    try {
+      const res = await fetch("/api/admin/game-config", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key }),
+      });
+      const d = await res.json();
+      setGameMsg(d.success ? "تنظیمات بازی حذف شد" : d.error || "خطا");
+      loadGameConfig();
+      setTimeout(() => setGameMsg(null), 3000);
+    } catch {
+      setGameMsg("خطا در حذف تنظیمات بازی");
     }
   };
 
@@ -296,6 +528,8 @@ export default function AdminPage() {
     { k: "payments", l: "مالی و پرداخت", i: Wallet },
     { k: "receipts", l: "رسیدها", i: CreditCard },
     { k: "bots", l: "ربات‌ها", i: Bot },
+    { k: "news", l: "اخبار", i: Newspaper },
+    { k: "games", l: "بازی‌ها", i: Gamepad2 },
     { k: "cms", l: "مدیریت محتوا", i: Edit3 },
     { k: "settings", l: "تنظیمات", i: Settings },
   ];
@@ -421,12 +655,14 @@ export default function AdminPage() {
         {/* ===== OPERATORS ===== */}
         {tab === "operators" && <motion.div key="op" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
           <div className="flex items-center justify-between"><h2 className="text-lg font-extrabold text-[var(--ink)]">مدیریت اپراتورها</h2>
-            {user?.role === "SUPER_ADMIN" && <button onClick={() => setShowAddOp(!showAddOp)} className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold"><Plus size={14} /> افزودن اپراتور</button>}
+            {user?.role === "SUPER_ADMIN" && <button onClick={() => { if (showAddOp && editingOpId) cancelEditOperator(); else setShowAddOp(!showAddOp); }} className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold">{showAddOp ? <X size={14} /> : <Plus size={14} />}{showAddOp ? "بستن" : "افزودن اپراتور"}</button>}
           </div>
 
+          {opActionMsg && <p className={`text-xs ${opActionMsg.includes("خطا") ? "text-red-400" : "text-emerald-300"}`}>{opActionMsg}</p>}
+
           {showAddOp && <GlassCard className="p-5 space-y-3">
-            <h3 className="text-sm font-bold text-[var(--ink)]">افزودن اپراتور جدید</h3>
-            <input value={newOpPhone} onChange={e => setNewOpPhone(e.target.value)} type="tel" placeholder="شماره موبایل" dir="ltr" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60 text-left" />
+            <h3 className="text-sm font-bold text-[var(--ink)]">{editingOpId ? "ویرایش اپراتور" : "افزودن اپراتور جدید"}</h3>
+            <input value={newOpPhone} onChange={e => setNewOpPhone(e.target.value)} type="tel" placeholder="شماره موبایل" dir="ltr" disabled={!!editingOpId} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60 text-left disabled:opacity-50" />
             <div>
               <p className="text-xs text-[var(--ink-dim)] mb-2">دسترسی به پیشخوان‌ها:</p>
               <div className="flex flex-wrap gap-2">{ALL_MODULES.map(m => <button key={m.id} onClick={() => toggleModule(m.id)} className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-all ${newOpModules.includes(m.id) ? "bg-emerald-400/20 text-emerald-300" : "btn-glass text-[var(--ink-dim)]"}`}>{m.label}</button>)}</div>
@@ -436,7 +672,10 @@ export default function AdminPage() {
               <input value={newOpCommission} onChange={e => setNewOpCommission(e.target.value)} type="number" className="w-20 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-[var(--ink)] outline-none" />
               <span className="text-xs text-[var(--ink-dim)]">٪ از هر سفارش</span>
             </div>
-            <button onClick={addOperator} className="btn-brand rounded-xl px-5 py-2.5 text-xs font-bold">ذخیره اپراتور</button>
+            <div className="flex gap-2">
+              <button onClick={addOperator} className="btn-brand rounded-xl px-5 py-2.5 text-xs font-bold">{editingOpId ? "بروزرسانی اپراتور" : "ذخیره اپراتور"}</button>
+              {editingOpId && <button onClick={cancelEditOperator} className="btn-glass rounded-xl px-4 py-2.5 text-xs">انصراف</button>}
+            </div>
           </GlassCard>}
 
           <div className="space-y-3">
@@ -446,7 +685,7 @@ export default function AdminPage() {
                   <div>
                     <h4 className="text-sm font-bold text-[var(--ink)]">{op.firstName || "اپراتور"} {op.lastName || ""}</h4>
                     <p className="text-[11px] text-[var(--ink-dim)]" dir="ltr">{op.phoneNumber}</p>
-                    <div className="mt-2 flex flex-wrap gap-1">{(op.assignedModules || []).map((m: string) => { const mod = ALL_MODULES.find(mm => mm.id === m); return <span key={m} className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-[var(--ink-dim)]">{mod?.label || m}</span>; })}</div>
+                    <div className="mt-2 flex flex-wrap gap-1">{(op.assignedModules || []).map((m: string) => { const mod = ALL_MODULES.find(mm => mm.id === m); return <span key={m} className="rounded-full bg-[var(--glass-fill-strong)] px-2 py-0.5 text-[10px] text-[var(--ink-dim)]">{mod?.label || m}</span>; })}</div>
                     <div className="mt-2 flex items-center gap-3 text-xs">
                       <span className="text-[var(--ink-dim)]">پورسانت: <span className="text-emerald-300 font-bold">{op.commissionRate || 10}٪</span></span>
                       <span className="text-[var(--ink-dim)]">سفارش‌ها: <span className="text-[var(--ink)] font-bold">{op.orderCount || 0}</span></span>
@@ -454,8 +693,8 @@ export default function AdminPage() {
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <button className="btn-glass rounded-lg p-2" title="ویرایش"><Edit3 size={13} /></button>
-                    <button className="btn-glass rounded-lg p-2 text-red-300" title="حذف"><Trash2 size={13} /></button>
+                    <button onClick={() => startEditOperator(op)} className="btn-glass rounded-lg p-2" title="ویرایش"><Edit3 size={13} /></button>
+                    <button onClick={() => deleteOperator(op)} className="btn-glass rounded-lg p-2 text-red-300" title="حذف"><Trash2 size={13} /></button>
                   </div>
                 </div>
               </GlassCard>)}
@@ -464,24 +703,73 @@ export default function AdminPage() {
 
         {/* ===== PAYMENTS ===== */}
         {tab === "payments" && <motion.div key="pm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+          {withdrawMsg && <p className={`text-xs ${withdrawMsg.includes("خطا") ? "text-red-400" : "text-emerald-300"}`}>{withdrawMsg}</p>}
           <GlassCard className="p-6">
             <h3 className="text-sm font-bold text-[var(--ink)] mb-4">درخواست برداشت (اپراتورها)</h3>
             <p className="text-xs text-[var(--ink-dim)] mb-4">پرداخت‌ها هر پنج‌شنبه ساعت ۳ تا ۹ شب انجام می‌شود</p>
             <div className="space-y-3">
               <input value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} type="number" placeholder="مبلغ درخواستی (تومان)" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60 text-left" />
               <input value={withdrawNote} onChange={e => setWithdrawNote(e.target.value)} placeholder="توضیحات (شماره کارت، بانک...)" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60" />
-              <button className="btn-brand flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold"><Banknote size={16} /> ثبت درخواست برداشت</button>
+              <button onClick={submitWithdrawal} className="btn-brand flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold"><Banknote size={16} /> ثبت درخواست برداشت</button>
             </div>
           </GlassCard>
+
+          {user?.role === "SUPER_ADMIN" && <GlassCard className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-[var(--ink)]">درخواست‌های برداشت</h3>
+              <button onClick={loadWithdrawals} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-medium"><RefreshCcw size={14} /> بروزرسانی</button>
+            </div>
+            <div className="flex flex-wrap gap-2 mb-4">{[{ k: "all", l: "همه" }, { k: "PENDING", l: "در انتظار" }, { k: "APPROVED", l: "تأیید شده" }, { k: "REJECTED", l: "رد شده" }].map(f => <button key={f.k} onClick={() => setWithdrawFilter(f.k)} className={`rounded-full px-4 py-2 text-xs font-medium transition-all ${withdrawFilter === f.k ? "bg-emerald-400/20 text-emerald-300" : "btn-glass text-[var(--ink-dim)]"}`}>{f.l}</button>)}</div>
+            {withdrawalsLoading ? <div className="py-10 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-emerald-300" /></div> :
+              <div className="space-y-3">
+                {withdrawals.filter((w: any) => withdrawFilter === "all" || w.status === withdrawFilter).length === 0 ? <p className="text-center py-10 text-sm text-[var(--ink-dim)]">درخواستی یافت نشد</p> :
+                  withdrawals.filter((w: any) => withdrawFilter === "all" || w.status === withdrawFilter).map((w: any) => (
+                    <div key={w.id} className="rounded-xl bg-[var(--glass-fill-strong)] p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-bold text-[var(--ink)]">{w.operatorName || ""} <span className="text-[11px] text-[var(--ink-dim)]" dir="ltr">{w.operatorPhone}</span></p>
+                          <p className="mt-1 text-sm font-extrabold text-emerald-300">{fmt(w.amount)} تومان</p>
+                          <p className="text-[11px] text-[var(--ink-dim)]">{new Date(w.createdAt).toLocaleString("fa-IR")}</p>
+                          <span className={`mt-2 inline-block rounded-full px-2.5 py-0.5 text-[10px] font-medium ${w.status === "PENDING" ? "bg-amber-400/10 text-amber-400" : w.status === "APPROVED" ? "bg-emerald-400/10 text-emerald-300" : "bg-red-400/10 text-red-300"}`}>{w.status === "PENDING" ? "در انتظار" : w.status === "APPROVED" ? "تأیید شده" : "رد شده"}</span>
+                          {w.adminNote && <p className="mt-1 text-[11px] text-[var(--ink-dim)]">یادداشت: {w.adminNote}</p>}
+                        </div>
+                      </div>
+                      {w.status === "PENDING" && (
+                        <div className="mt-4 space-y-2">
+                          {withdrawRejectingId === w.id ? (
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                              <input value={withdrawRejectReason} onChange={e => setWithdrawRejectReason(e.target.value)} placeholder="دلیل رد" className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-[var(--ink)] outline-none" />
+                              <button onClick={() => rejectWithdrawal(w.id)} className="btn-glass rounded-xl px-3 py-2 text-xs text-red-300">تایید رد</button>
+                              <button onClick={() => { setWithdrawRejectingId(null); setWithdrawRejectReason(""); }} className="btn-glass rounded-xl px-3 py-2 text-xs">انصراف</button>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-2">
+                              <input value={withdrawReceiptUrl} onChange={e => setWithdrawReceiptUrl(e.target.value)} placeholder="URL رسید پرداخت (اختیاری)" className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-[var(--ink)] outline-none" dir="ltr" />
+                              <input value={withdrawAdminNote} onChange={e => setWithdrawAdminNote(e.target.value)} placeholder="یادداشت مدیر (مثلاً واریز شد، بانک سامان)" className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-[var(--ink)] outline-none" />
+                            </div>
+                          )}
+                          {withdrawRejectingId !== w.id && (
+                            <div className="flex gap-2">
+                              <button onClick={() => approveWithdrawal(w.id)} className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold"><CheckCircle2 size={13} /> تأیید و تسویه</button>
+                              <button onClick={() => setWithdrawRejectingId(w.id)} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2 text-xs text-red-300"><XCircle size={13} /> رد</button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            }
+          </GlassCard>}
 
           <GlassCard className="p-6">
             <h3 className="text-sm font-bold text-[var(--ink)] mb-4">روش‌های پرداخت مشتریان</h3>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl bg-white/5 p-4">
+              <div className="rounded-xl bg-[var(--glass-fill-strong)] p-4">
                 <div className="flex items-center gap-2 mb-2"><CreditCard size={18} className="text-emerald-300" /><span className="text-sm font-medium text-[var(--ink)]">درگاه پرداخت آنلاین</span></div>
                 <p className="text-[11px] text-[var(--ink-dim)]">پرداخت مستقیم از طریق درگاه شاپرک</p>
               </div>
-              <div className="rounded-xl bg-white/5 p-4">
+              <div className="rounded-xl bg-[var(--glass-fill-strong)] p-4">
                 <div className="flex items-center gap-2 mb-2"><Upload size={18} className="text-emerald-300" /><span className="text-sm font-medium text-[var(--ink)]">کارت به کارت</span></div>
                 <p className="text-[11px] text-[var(--ink-dim)]">ارسال رسید و تایید توسط ادمین</p>
               </div>
@@ -587,6 +875,71 @@ export default function AdminPage() {
         </motion.div>}
 
         {/* ===== CMS ===== */}
+        {tab === "news" && <motion.div key="news" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+          <div className="flex items-center justify-between"><h2 className="text-lg font-extrabold text-[var(--ink)]">مدیریت منابع اخبار (RSS)</h2>
+            <button onClick={loadNewsFeeds} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-medium"><RefreshCcw size={14} /> بروزرسانی</button>
+          </div>
+          {newsMsg && <p className={`text-xs ${newsMsg.includes("خطا") ? "text-red-400" : "text-emerald-300"}`}>{newsMsg}</p>}
+          <GlassCard className="p-5 space-y-3">
+            <h3 className="text-sm font-bold text-[var(--ink)]">افزودن منبع خبری</h3>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <input value={newsForm.sourceName} onChange={e => setNewsForm({ ...newsForm, sourceName: e.target.value })} placeholder="نام منبع (مثلاً ایسنا)" className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-[var(--ink)] outline-none" />
+              <input value={newsForm.rssUrl} onChange={e => setNewsForm({ ...newsForm, rssUrl: e.target.value })} placeholder="آدرس RSS" className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-[var(--ink)] outline-none" dir="ltr" />
+              <input value={newsForm.category} onChange={e => setNewsForm({ ...newsForm, category: e.target.value })} placeholder="دسته‌بندی" className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-[var(--ink)] outline-none" />
+            </div>
+            <button onClick={addNewsFeed} className="btn-brand flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold"><Plus size={12} /> افزودن منبع</button>
+          </GlassCard>
+          {newsFeedsLoading ? <div className="py-10 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-emerald-300" /></div> :
+            <div className="space-y-3">
+              {newsFeeds.length === 0 ? <p className="text-center py-10 text-sm text-[var(--ink-dim)]">منبعی یافت نشد</p> :
+                newsFeeds.map(f => (
+                  <GlassCard key={f.id} className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-bold text-[var(--ink)]">{f.sourceName}</p>
+                        <p className="text-[11px] text-[var(--ink-dim)]" dir="ltr">{f.rssUrl}</p>
+                        <p className="text-[11px] text-emerald-300">{f.category}</p>
+                      </div>
+                      <button onClick={() => deleteNewsFeed(f.id)} className="btn-glass rounded-lg p-2 text-red-300"><Trash2 size={13} /></button>
+                    </div>
+                  </GlassCard>
+                ))}
+            </div>
+          }
+        </motion.div>}
+
+        {tab === "games" && <motion.div key="games" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+          <div className="flex items-center justify-between"><h2 className="text-lg font-extrabold text-[var(--ink)]">تنظیمات بازی‌ها</h2>
+            <button onClick={loadGameConfig} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-medium"><RefreshCcw size={14} /> بروزرسانی</button>
+          </div>
+          {gameMsg && <p className={`text-xs ${gameMsg.includes("خطا") ? "text-red-400" : "text-emerald-300"}`}>{gameMsg}</p>}
+          <GlassCard className="p-5 space-y-3">
+            <h3 className="text-sm font-bold text-[var(--ink)]">افزودن/ویرایش تنظیم</h3>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <input value={gameForm.key} onChange={e => setGameForm({ ...gameForm, key: e.target.value })} placeholder="کلید (مثلاً memory_active)" className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-[var(--ink)] outline-none" dir="ltr" />
+              <input value={gameForm.value} onChange={e => setGameForm({ ...gameForm, value: e.target.value })} placeholder="مقدار (JSON یا متن)" className="sm:col-span-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-[var(--ink)] outline-none" />
+            </div>
+            <button onClick={() => { saveGameConfig(gameForm.key, gameForm.value); setGameForm({ key: "", value: "" }); }} className="btn-brand flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold"><Save size={12} /> ذخیره تنظیم</button>
+          </GlassCard>
+          <p className="text-xs text-[var(--ink-dim)]">مثال‌های کلید: <code>memory_active</code>، <code>reaction_active</code>، <code>quiz_active</code>، <code>puzzle_active</code>، <code>point_to_discount</code> (آرایه JSON).</p>
+          {gameConfigLoading ? <div className="py-10 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-emerald-300" /></div> :
+            <div className="space-y-3">
+              {gameConfigRows.length === 0 ? <p className="text-center py-10 text-sm text-[var(--ink-dim)]">تنظیمی یافت نشد</p> :
+                gameConfigRows.map((cfg: any) => (
+                  <GlassCard key={cfg.key} className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-[var(--ink)]">{cfg.key}</p>
+                        <p className="text-[11px] text-[var(--ink-dim)] break-all" dir="ltr">{typeof cfg.value === "object" ? JSON.stringify(cfg.value) : String(cfg.value)}</p>
+                      </div>
+                      <button onClick={() => deleteGameConfig(cfg.key)} className="btn-glass rounded-lg p-2 text-red-300"><Trash2 size={13} /></button>
+                    </div>
+                  </GlassCard>
+                ))}
+            </div>
+          }
+        </motion.div>}
+
         {tab === "cms" && <motion.div key="cms" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[var(--ink)]">مدیریت محتوا</h2>

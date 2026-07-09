@@ -41,3 +41,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "خطا" }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await getCurrentUser();
+    if (!session || session.role !== "SUPER_ADMIN") {
+      return NextResponse.json({ error: "دسترسی غیرمجاز" }, { status: 403 });
+    }
+    const { key } = await req.json();
+    if (!key) return NextResponse.json({ error: "کلید الزامی است" }, { status: 400 });
+    await db.delete(gameConfig).where(eq(gameConfig.key, key));
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Delete game config error:", error);
+    return NextResponse.json({ error: "خطا" }, { status: 500 });
+  }
+}

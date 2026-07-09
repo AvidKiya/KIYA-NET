@@ -107,3 +107,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "خطا در ایجاد اپراتور" }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await getCurrentUser();
+    if (!session || session.role !== "SUPER_ADMIN") {
+      return NextResponse.json({ error: "دسترسی غیرمجاز" }, { status: 403 });
+    }
+
+    const { id } = await req.json();
+    if (!id) {
+      return NextResponse.json({ error: "شناسه الزامی است" }, { status: 400 });
+    }
+
+    const existing = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1)
+      .then((r) => r[0]);
+
+    if (!existing) {
+      return NextResponse.json({ error: "کاربر یافت نشد" }, { status: 404 });
+    }
+
+    if (existing.role === "SUPER_ADMIN") {
+      return NextResponse.json({ error: "نمی‌توان مدیر کل را حذف کرد" }, { status: 400 });
+    }
+
+    await db
+      .update(users)
+      .set({ role: "CUSTOMER", assignedModules: [], commissionRate: "0", updatedAt: new Date() })
+      .where(eq(users.id, id));
+
+    return NextResponse.json({ success: true, message: "دسترسی اپراتور حذف شد" });
+  } catch (error) {
+    console.error("Delete operator error:", error);
+    return NextResponse.json({ error: "خطا در حذف اپراتور" }, { status: 500 });
+  }
+}
