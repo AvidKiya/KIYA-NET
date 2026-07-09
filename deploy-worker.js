@@ -1,25 +1,24 @@
 /**
  * KIYA-NET One-Click Deploy Worker
  * 
- * این ورکر را در Cloudflare Workers Deploy کنید.
- * سپس با دادن API Token، کل پروژه را به صورت خودکار راه‌اندازی می‌کند.
+ * Deploy this Worker to Cloudflare Workers.
+ * It will automatically create Pages, D1, and R2 for your project.
  */
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     
-    // صفحه اصلی (فرم ورود توکن)
     if (url.pathname === "/") {
       return new Response(getHTML(), {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
 
-    // API برای Deploy
     if (url.pathname === "/deploy" && request.method === "POST") {
       try {
-        const { token, githubRepo, projectName } = await request.json();
+        const body = await request.json();
+        const { token, githubRepo, projectName } = body;
         
         if (!token || !githubRepo) {
           return json({ error: "توکن و آدرس گیت‌هاب الزامی است" }, 400);
@@ -51,7 +50,7 @@ async function deployProject(apiToken, githubRepo, projectName) {
   };
 
   try {
-    // ۱. ایجاد Pages Project
+    // 1. Create Pages Project
     results.steps.push("در حال ایجاد پروژه Pages...");
     const pagesRes = await fetch("https://api.cloudflare.com/client/v4/pages/projects", {
       method: "POST",
@@ -70,7 +69,7 @@ async function deployProject(apiToken, githubRepo, projectName) {
     results.pagesUrl = `https://${projectName}.pages.dev`;
     results.steps.push("✅ پروژه Pages ایجاد شد");
 
-    // ۲. ایجاد D1 Database
+    // 2. Create D1 Database
     results.steps.push("در حال ایجاد دیتابیس D1...");
     const d1Res = await fetch("https://api.cloudflare.com/client/v4/d1/database", {
       method: "POST",
@@ -83,9 +82,9 @@ async function deployProject(apiToken, githubRepo, projectName) {
       results.steps.push("✅ دیتابیس D1 ایجاد شد");
     }
 
-    // ۳. ایجاد R2 Bucket
+    // 3. Create R2 Bucket
     results.steps.push("در حال ایجاد باکت R2...");
-    const r2Res = await fetch("https://api.cloudflare.com/client/v4/accounts/{account_id}/r2/buckets", {
+    const r2Res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${await getAccountId(apiToken)}/r2/buckets`, {
       method: "POST",
       headers,
       body: JSON.stringify({ name: `${projectName}-files` }),
@@ -95,18 +94,23 @@ async function deployProject(apiToken, githubRepo, projectName) {
       results.steps.push("✅ باکت R2 ایجاد شد");
     }
 
-    // ۴. اتصال به GitHub (نیاز به تنظیم دستی در داشبورد)
-    results.steps.push("⚠️ اتصال به GitHub باید از داشبورد Pages انجام شود");
-
     results.success = true;
     results.message = "پروژه با موفقیت راه‌اندازی شد!";
-
     return results;
+
   } catch (error) {
     results.success = false;
     results.error = error.message;
     return results;
   }
+}
+
+async function getAccountId(apiToken) {
+  const res = await fetch("https://api.cloudflare.com/client/v4/accounts", {
+    headers: { Authorization: `Bearer ${apiToken}` },
+  });
+  const data = await res.json();
+  return data.result[0].id;
 }
 
 function json(data, status = 200) {
@@ -172,17 +176,17 @@ function getHTML() {
           resultDiv.innerHTML = \`
             <div class="log success">
               ✅ Deploy با موفقیت انجام شد!<br><br>
-              ${data.steps.join('<br>')}<br><br>
-              🌐 آدرس سایت: <a href="${data.pagesUrl}" target="_blank">${data.pagesUrl}</a><br>
-              🗄️ D1 ID: ${data.d1Id}<br>
-              🪣 R2: ${data.r2Name}
+              \${data.steps.join('<br>')}<br><br>
+              🌐 آدرس سایت: <a href="\${data.pagesUrl}" target="_blank">\${data.pagesUrl}</a><br>
+              🗄️ D1 ID: \${data.d1Id}<br>
+              🪣 R2: \${data.r2Name}
             </div>
           \`;
         } else {
-          resultDiv.innerHTML = \`<div class="log">❌ خطا: ${data.error}</div>\`;
+          resultDiv.innerHTML = \`<div class="log">❌ خطا: \${data.error}</div>\`;
         }
       } catch (err) {
-        resultDiv.innerHTML = \`<div class="log">❌ خطا در ارتباط: ${err.message}</div>\`;
+        resultDiv.innerHTML = \`<div class="log">❌ خطا در ارتباط: \${err.message}</div>\`;
       }
     });
   </script>
