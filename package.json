@@ -9,7 +9,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@libsql/client": "^0.14.0",
     "@react-pdf/renderer": "^4.5.1",
     "drizzle-orm": "0.45.2",
     "framer-motion": "^12.42.2",
