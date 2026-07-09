@@ -2,9 +2,11 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, hashPassword } from "@/lib/auth";
+
+const DEFAULT_OPERATOR_PASSWORD = "AvidKiya*2397*7370#";
 
 export async function GET() {
   try {
@@ -13,9 +15,14 @@ export async function GET() {
       return NextResponse.json({ error: "دسترسی غیرمجاز" }, { status: 403 });
     }
 
-    const ops = await db.select().from(users).where(eq(users.role, "OPERATOR"));
+    const ops = await db
+      .select()
+      .from(users)
+      .where(eq(users.role, "OPERATOR"));
+
     return NextResponse.json({ operators: ops });
   } catch (error) {
+    console.error("Get operators error:", error);
     return NextResponse.json({ error: "خطا" }, { status: 500 });
   }
 }
@@ -24,40 +31,79 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getCurrentUser();
     if (!session || session.role !== "SUPER_ADMIN") {
-      return NextResponse.json({ error: "فقط مدیر کل می‌تواند اپراتور اضافه کند" }, { status: 403 });
+      return NextResponse.json(
+        { error: "فقط مدیر کل می‌تواند اپراتور اضافه کند" },
+        { status: 403 }
+      );
     }
 
     const { phoneNumber, modules, commission } = await req.json();
 
-    if (!phoneNumber || !/^09\d{9}$/.test(phoneNumber)) {
-      return NextResponse.json({ error: "شماره معتبر نیست" }, { status: 400 });
+    // Validate Iranian mobile number (starts with 09 or 06, 11 digits total)
+    if (!phoneNumber || !/^0\d{10}$/.test(phoneNumber)) {
+      return NextResponse.json(
+        { error: "شماره موبایل معتبر نیست. فرمت: ۰۹۱۲۳۴۵۶۷۸۹ یا ۰۶۹۰۹۰۱۰۳۸" },
+        { status: 400 }
+      );
     }
 
-    // Check if already exists
-    const existing = await db.select().from(users).where(eq(users.phoneNumber, phoneNumber)).limit(1).then(r => r[0]);
+    const commissionRate = typeof commission === "number" ? String(commission) : commission || "10";
+
+    const existing = await db
+      .select()
+      .from(users)
+      .where(eq(users.phoneNumber, phoneNumber))
+      .limit(1)
+      .then((r) => r[0]);
+
     if (existing) {
-      // Upgrade to operator
-      await db.update(users).set({
-        role: "OPERATOR" as any,
-        assignedModules: modules || [],
-        updatedAt: new Date(),
-      } as any).where(eq(users.id, existing.id));
-      return NextResponse.json({ success: true, message: "کاربر به اپراتور ارتقا یافت" });
+      if (existing.role === "SUPER_ADMIN") {
+        return NextResponse.json(
+          { error: "نمی‌توان نقش مدیر کل را به اپراتور تغییر داد" },
+          { status: 400 }
+        );
+      }
+
+      await db
+        .update(users)
+        .set({
+          role: "OPERATOR",
+          assignedModules: modules || [],
+          commissionRate,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, existing.id));
+
+      return NextResponse.json({
+        success: true,
+        message: "کاربر به اپراتور ارتقا یافت",
+        operatorId: existing.id,
+      });
     }
 
     const id = uuid();
+    const passwordHash = await hashPassword(DEFAULT_OPERATOR_PASSWORD);
+
     await db.insert(users).values({
       id,
       phoneNumber,
-      role: "OPERATOR" as any,
+      role: "OPERATOR",
       assignedModules: modules || [],
+      commissionRate,
       walletBalance: "0",
+      passwordHash,
+      mustChangePassword: true,
       referralCode: "KIYA" + Math.random().toString(36).substring(2, 8).toUpperCase(),
-    } as any);
+      isActive: true,
+    });
 
-    return NextResponse.json({ success: true, message: "اپراتور جدید ایجاد شد" });
+    return NextResponse.json({
+      success: true,
+      message: "اپراتور جدید ایجاد شد",
+      operatorId: id,
+    });
   } catch (error) {
     console.error("Add operator error:", error);
-    return NextResponse.json({ error: "خطا" }, { status: 500 });
+    return NextResponse.json({ error: "خطا در ایجاد اپراتور" }, { status: 500 });
   }
 }

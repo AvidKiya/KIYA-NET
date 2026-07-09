@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Wallet, Plus, ShieldCheck, CreditCard, Upload, Banknote, Loader2, ArrowRight, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { Wallet, Plus, CreditCard, Banknote, Loader2, ArrowDownLeft, ArrowUpRight, ExternalLink } from "lucide-react";
 import { GlassCard } from "@/components/GlassCard";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -11,7 +11,7 @@ export default function WalletPage() {
   const [user, setUser] = useState<any>(null);
   const [txs, setTxs] = useState<any[]>([]);
   const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState<"gateway" | "card">("gateway");
+  const [gateway, setGateway] = useState<"zarinpal" | "payping" | "test">("test");
   const [charging, setCharging] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -25,15 +25,22 @@ export default function WalletPage() {
   const fd = (d: string) => new Date(d).toLocaleDateString("fa-IR", { month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
   const balance = user?.walletBalance || "0";
 
-  const charge = async () => {
+  const chargeGateway = async () => {
     if (!amount || Number(amount) < 1000) { setMsg("حداقل ۱۰۰۰ تومان"); return; }
     setCharging(true); setMsg("");
     try {
-      const res = await fetch("/api/wallet/charge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: Number(amount), method }) });
+      const res = await fetch("/api/payment/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "WALLET_CHARGE", amount: Number(amount), gateway, description: "شارژ کیف پول" }),
+      });
       const d = await res.json();
-      if (d.success) { setAmount(""); loadData(); setMsg("شارژ شد!"); }
-      else setMsg(d.error);
-    } catch { setMsg("خطا"); }
+      if (d.success && d.paymentUrl) {
+        window.location.href = d.paymentUrl;
+      } else {
+        setMsg(d.error || "خطا در ایجاد درخواست پرداخت");
+      }
+    } catch { setMsg("خطا در اتصال"); }
     finally { setCharging(false); }
   };
 
@@ -48,14 +55,20 @@ export default function WalletPage() {
       {/* Charge section */}
       <GlassCard className="p-6 space-y-4">
         <h3 className="text-sm font-bold text-[var(--ink)]">افزایش موجودی</h3>
-        <div className="flex gap-2">
-          {[{ v: "gateway", l: "درگاه پرداخت", i: CreditCard }, { v: "card", l: "کارت به کارت", i: Banknote }].map(m => <button key={m.v} onClick={() => setMethod(m.v as any)} className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-xs font-medium transition-all ${method === m.v ? "bg-emerald-400/15 text-emerald-300" : "btn-glass text-[var(--ink-dim)]"}`}><m.i size={16} />{m.l}</button>)}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {[
+            { v: "zarinpal", l: "زرین‌پال", i: CreditCard },
+            { v: "payping", l: "پی‌پینگ", i: CreditCard },
+            { v: "test", l: "تست", i: CreditCard },
+          ].map(m => <button key={m.v} onClick={() => setGateway(m.v as any)} className={`flex items-center justify-center gap-2 rounded-xl py-3 text-xs font-medium transition-all ${gateway === m.v ? "bg-emerald-400/15 text-emerald-300" : "btn-glass text-[var(--ink-dim)]"}`}><m.i size={16} />{m.l}</button>)}
         </div>
-        {method === "card" && <div className="rounded-xl bg-white/5 p-3 text-xs text-[var(--ink-dim)]">شماره کارت: <span className="font-mono text-[var(--ink)] tracking-wider" dir="ltr">۶۰۳۷-۹۹۱۸-XXXX-XXXX</span><br />پس از واریز، رسید را در بخش پشتیبانی ارسال کنید</div>}
         <div className="flex gap-2">
           <input value={amount} onChange={e => setAmount(e.target.value)} type="number" placeholder="مبلغ به تومان" className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60 text-left" />
-          <button onClick={charge} disabled={charging} className="btn-brand flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold disabled:opacity-60">{charging ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} شارژ</button>
+          <button onClick={chargeGateway} disabled={charging} className="btn-brand flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold disabled:opacity-60">{charging ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} پرداخت</button>
         </div>
+        <Link href="/wallet/card-to-card" className="btn-glass flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium text-[var(--ink)]">
+          <Banknote size={16} /> پرداخت کارت به کارت <ExternalLink size={12} />
+        </Link>
         {msg && <p className={`text-xs ${msg.includes("خطا") || msg.includes("حداقل") ? "text-red-400" : "text-emerald-300"}`}>{msg}</p>}
       </GlassCard>
 

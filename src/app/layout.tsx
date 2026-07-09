@@ -3,6 +3,10 @@ import type { ReactNode } from "react";
 import { Vazirmatn } from "next/font/google";
 import "./globals.css";
 import { BackgroundScene } from "@/components/BackgroundScene";
+import { CMSProvider } from "@/components/cms/CMSContext";
+import { LiveEditToggle } from "@/components/cms/LiveEditToggle";
+import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { InstallPrompt } from "@/components/InstallPrompt";
 
 const vazirmatn = Vazirmatn({ subsets: ["arabic", "latin"], weight: ["400", "500", "700"], variable: "--font-vazir", display: "swap" });
 
@@ -12,6 +16,13 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "کیا نت" },
   other: { "mobile-web-app-capable": "yes" },
+  icons: {
+    apple: "/apple-touch-icon.png",
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+  },
 };
 
 export const viewport: Viewport = {
@@ -29,9 +40,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="fa" dir="rtl" data-theme="dark" className={vazirmatn.variable}>
       <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
       <body className="font-[family-name:var(--font-vazir)] antialiased selection:bg-emerald-400/30 overscroll-none">
-        <BackgroundScene />
-        <div className="grain" />
-        <div className="relative flex min-h-dvh flex-col">{children}</div>
+        <CMSProvider>
+          <BackgroundScene />
+          <div className="grain" />
+          <div className="relative flex min-h-dvh flex-col">{children}</div>
+          <LiveEditToggle />
+          <ServiceWorkerRegister />
+          <InstallPrompt />
+        </CMSProvider>
       </body>
     </html>
   );

@@ -70,6 +70,7 @@ export async function PATCH(
           id: uuid(),
           userId: customer.id,
           amount: amount.toFixed(2),
+          balanceAfter: newBalance.toFixed(2),
           type: "REFUND",
           orderId: id,
           description: `عودت وجه بابت لغو سفارش ${id}`,
@@ -80,6 +81,46 @@ export async function PATCH(
     }
 
     await db.update(orders).set(updateData).where(eq(orders.id, id));
+
+    // Commission calculation for completed paid orders
+    if (status === "COMPLETED" && order.paymentStatus === "PAID" && !order.commissionPaid && order.operatorId) {
+      const operator = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, order.operatorId))
+        .limit(1)
+        .then((r) => r[0]);
+
+      if (operator && operator.role === "OPERATOR") {
+        const commissionRate = parseFloat(operator.commissionRate || "0");
+        if (commissionRate > 0) {
+          const totalAmount = parseFloat(order.totalAmount);
+          const commissionAmount = Math.round((totalAmount * commissionRate) / 100 * 100) / 100;
+          const operatorBalance = parseFloat(operator.walletBalance || "0");
+          const newBalance = operatorBalance + commissionAmount;
+
+          await db
+            .update(users)
+            .set({ walletBalance: newBalance.toFixed(2) })
+            .where(eq(users.id, operator.id));
+
+          await db.insert(walletTransactions).values({
+            id: uuid(),
+            userId: operator.id,
+            amount: commissionAmount.toFixed(2),
+            balanceAfter: newBalance.toFixed(2),
+            type: "COMMISSION",
+            orderId: id,
+            description: `پورسانت سفارش ${id} — ${commissionRate}%`,
+          });
+
+          await db
+            .update(orders)
+            .set({ commissionPaid: true })
+            .where(eq(orders.id, id));
+        }
+      }
+    }
 
     // Notify customer
     const statusMessages: Record<string, string> = {

@@ -12,7 +12,6 @@ import {
   serial,
   varchar,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
 
 // ======================== ENUMS ========================
 
@@ -49,6 +48,7 @@ export const paymentStatusEnum = pgEnum("payment_status", [
 export const paymentMethodEnum = pgEnum("payment_method", [
   "WALLET",
   "ONLINE_GATEWAY",
+  "CARD_TO_CARD",
 ]);
 
 export const messageTypeEnum = pgEnum("message_type", [
@@ -57,6 +57,63 @@ export const messageTypeEnum = pgEnum("message_type", [
   "IMAGE",
   "FILE",
   "SYSTEM_ALERT",
+]);
+
+export const withdrawalStatusEnum = pgEnum("withdrawal_status", [
+  "PENDING",
+  "APPROVED",
+  "REJECTED",
+]);
+
+export const receiptStatusEnum = pgEnum("receipt_status", [
+  "PENDING",
+  "APPROVED",
+  "REJECTED",
+]);
+
+export const identifierTypeEnum = pgEnum("identifier_type", [
+  "PHONE",
+  "TELEGRAM_ID",
+  "BALE_ID",
+]);
+
+export const menuLocationEnum = pgEnum("menu_location", [
+  "HEADER",
+  "FOOTER",
+  "BOTTOM_NAV",
+]);
+
+export const discountTypeEnum = pgEnum("discount_type", [
+  "PERCENT",
+  "FIXED",
+]);
+
+export const discountSourceEnum = pgEnum("discount_source", [
+  "GAME",
+  "CAMPAIGN",
+  "MANUAL",
+]);
+
+export const walletTransactionTypeEnum = pgEnum("wallet_transaction_type", [
+  "CHARGE",
+  "PAYMENT",
+  "REFUND",
+  "REFERRAL_BONUS",
+  "COMMISSION",
+  "WITHDRAWAL",
+  "WITHDRAWAL_REFUND",
+]);
+
+export const pendingPaymentTypeEnum = pgEnum("pending_payment_type", [
+  "WALLET_CHARGE",
+  "ORDER_PAYMENT",
+]);
+
+export const pendingPaymentStatusEnum = pgEnum("pending_payment_status", [
+  "PENDING",
+  "PAID",
+  "FAILED",
+  "CANCELLED",
 ]);
 
 // ======================== USERS ========================
@@ -77,8 +134,12 @@ export const users = pgTable(
     baleChatId: text("bale_chat_id"),
     role: userRoleEnum("role").default("CUSTOMER").notNull(),
     assignedModules: jsonb("assigned_modules").$type<string[]>(),
+    commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }),
+    passwordHash: text("password_hash"),
+    mustChangePassword: boolean("must_change_password").default(false).notNull(),
     referralCode: text("referral_code").unique(),
     referredBy: text("referred_by"),
+    isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -112,12 +173,28 @@ export const sessions = pgTable("sessions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// ======================== SYSTEM SETTINGS ========================
+// ======================== SYSTEM SETTINGS (SENSITIVE TOKENS) ========================
 
 export const systemSettings = pgTable("system_settings", {
   key: text("key").primaryKey(),
   value: text("value"),
   isConfigured: boolean("is_configured").default(false).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ======================== SITE SETTINGS (CONTENT CMS) ========================
+
+export const siteSettings = pgTable("site_settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").$type<any>(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ======================== THEME SETTINGS ========================
+
+export const themeSettings = pgTable("theme_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
@@ -143,6 +220,7 @@ export const serviceCategories = pgTable("service_categories", {
   name: text("name").notNull(),
   slug: text("slug").unique().notNull(),
   description: text("description"),
+  tagline: text("tagline"),
   iconName: text("icon_name").notNull(),
   color: text("color").notNull(),
   sortOrder: integer("sort_order").default(0).notNull(),
@@ -157,8 +235,12 @@ export const services = pgTable("services", {
     .references(() => serviceCategories.id, { onDelete: "cascade" })
     .notNull(),
   serviceName: text("service_name").notNull(),
+  slug: text("slug"),
+  description: text("description"),
   officialPrice: decimal("official_price", { precision: 12, scale: 2 }).notNull(),
   kiyanetPrice: decimal("kiyanet_price", { precision: 12, scale: 2 }).notNull(),
+  discountPercent: decimal("discount_percent", { precision: 5, scale: 2 }).default("0").notNull(),
+  unit: text("unit").default("هر مورد").notNull(),
   estimatedTimeMinutes: integer("estimated_time_minutes").notNull(),
   estimatedTimeText: text("estimated_time_text"),
   requiredDocuments: jsonb("required_documents").$type<string[]>(),
@@ -184,10 +266,12 @@ export const orders = pgTable(
     totalAmount: decimal("total_amount", { precision: 12, scale: 2 }).notNull(),
     paymentStatus: paymentStatusEnum("payment_status").default("PENDING").notNull(),
     paymentMethod: paymentMethodEnum("payment_method"),
+    isExpress: boolean("is_express").default(false).notNull(),
     userNotes: text("user_notes"),
     adminNotes: text("admin_notes"),
     finalOutputFile: text("final_output_file"),
     shippingTrackingCode: text("shipping_tracking_code"),
+    commissionPaid: boolean("commission_paid").default(false).notNull(),
     completedAt: timestamp("completed_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -227,23 +311,85 @@ export const walletTransactions = pgTable(
       .references(() => users.id, { onDelete: "cascade" })
       .notNull(),
     amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
-    type: text("type").notNull(), // CHARGE, PAYMENT, REFUND, REFERRAL_BONUS
+    type: walletTransactionTypeEnum("type").notNull(),
     orderId: text("order_id"),
+    withdrawalId: text("withdrawal_id"),
+    balanceAfter: decimal("balance_after", { precision: 15, scale: 2 }),
     description: text("description"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [index("wallet_user_idx").on(table.userId)]
 );
 
+// ======================== PENDING PAYMENTS ========================
+
+export const pendingPayments = pgTable(
+  "pending_payments",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    type: pendingPaymentTypeEnum("type").notNull(),
+    amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+    gateway: text("gateway").notNull(),
+    authority: text("authority").notNull(),
+    status: pendingPaymentStatusEnum("status").default("PENDING").notNull(),
+    orderId: text("order_id").references(() => orders.id, { onDelete: "set null" }),
+    description: text("description"),
+    refId: text("ref_id"),
+    cardPan: text("card_pan"),
+    callbackUrl: text("callback_url").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, string>>(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [index("pending_user_idx").on(table.userId), index("pending_authority_idx").on(table.authority)]
+);
+
+// ======================== WITHDRAWAL REQUESTS ========================
+
+export const withdrawalRequests = pgTable("withdrawal_requests", {
+  id: text("id").primaryKey(),
+  operatorId: text("operator_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  status: withdrawalStatusEnum("status").default("PENDING").notNull(),
+  receiptUrl: text("receipt_url"),
+  adminNote: text("admin_note"),
+  processedAt: timestamp("processed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ======================== CARD TO CARD RECEIPTS ========================
+
+export const cardToCardReceipts = pgTable("card_to_card_receipts", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  orderId: text("order_id").references(() => orders.id, { onDelete: "set null" }),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  receiptUrl: text("receipt_url").notNull(),
+  status: receiptStatusEnum("status").default("PENDING").notNull(),
+  verifiedBy: text("verified_by").references(() => users.id, { onDelete: "set null" }),
+  rejectionReason: text("rejection_reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // ======================== COUPONS ========================
 
 export const coupons = pgTable("coupons", {
   id: text("id").primaryKey(),
   code: text("code").unique().notNull(),
+  discountType: discountTypeEnum("discount_type").default("PERCENT").notNull(),
   discountPercent: integer("discount_percent"),
   discountAmount: decimal("discount_amount", { precision: 10, scale: 2 }),
   maxUses: integer("max_uses"),
   currentUses: integer("current_uses").default(0).notNull(),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+  source: discountSourceEnum("source").default("MANUAL").notNull(),
   expiresAt: timestamp("expires_at"),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -280,6 +426,102 @@ export const notifications = pgTable(
   (table) => [index("notif_user_idx").on(table.userId)]
 );
 
+// ======================== BUSINESS NETWORK ========================
+
+export const businessNetwork = pgTable("business_network", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  iconName: text("icon_name").notNull(),
+  url: text("url").notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ======================== ABOUT CONTENT ========================
+
+export const aboutContent = pgTable("about_content", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").$type<any>(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ======================== MENU ITEMS ========================
+
+export const menuItems = pgTable("menu_items", {
+  id: serial("id").primaryKey(),
+  label: text("label").notNull(),
+  link: text("link").notNull(),
+  iconName: text("icon_name"),
+  location: menuLocationEnum("location").notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+});
+
+// ======================== GAME SCORES ========================
+
+export const gameScores = pgTable(
+  "game_scores",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    gameType: text("game_type").notNull(),
+    score: integer("score").notNull(),
+    points: integer("points").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, any>>(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [index("game_user_idx").on(table.userId), index("game_type_idx").on(table.gameType)]
+);
+
+// ======================== GAME CONFIG ========================
+
+export const gameConfig = pgTable("game_config", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").$type<any>(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ======================== NEWS FEEDS ========================
+
+export const newsFeeds = pgTable("news_feeds", {
+  id: serial("id").primaryKey(),
+  sourceName: text("source_name").notNull(),
+  rssUrl: text("rss_url").notNull(),
+  category: text("category").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+});
+
+// ======================== PREDEFINED ADMINS ========================
+
+export const predefinedAdmins = pgTable("predefined_admins", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  identifierType: identifierTypeEnum("identifier_type").notNull(),
+  role: userRoleEnum("role").default("OPERATOR").notNull(),
+  assignedModules: jsonb("assigned_modules").$type<string[]>(),
+  commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }),
+  isActive: boolean("is_active").default(true).notNull(),
+  linkedUserId: text("linked_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ======================== CONTENT EDIT LOGS ========================
+
+export const contentEditLogs = pgTable("content_edit_logs", {
+  id: text("id").primaryKey(),
+  settingKey: text("setting_key").notNull(),
+  tableName: text("table_name"),
+  recordId: text("record_id"),
+  oldValue: jsonb("old_value").$type<any>(),
+  newValue: jsonb("new_value").$type<any>(),
+  editedBy: text("edited_by").references(() => users.id, { onDelete: "set null" }),
+  editedAt: timestamp("edited_at").defaultNow().notNull(),
+});
+
 // ======================== TYPE EXPORTS ========================
 
 export type User = typeof users.$inferSelect;
@@ -287,12 +529,30 @@ export type NewUser = typeof users.$inferInsert;
 export type OtpCode = typeof otpCodes.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type SystemSetting = typeof systemSettings.$inferSelect;
+export type SiteSetting = typeof siteSettings.$inferSelect;
+export type ThemeSetting = typeof themeSettings.$inferSelect;
 export type IdentityVaultDocument = typeof identityVaultDocuments.$inferSelect;
 export type ServiceCategory = typeof serviceCategories.$inferSelect;
+export type NewServiceCategory = typeof serviceCategories.$inferInsert;
 export type Service = typeof services.$inferSelect;
+export type NewService = typeof services.$inferInsert;
 export type Order = typeof orders.$inferSelect;
 export type NewOrder = typeof orders.$inferInsert;
 export type OrderChatMessage = typeof orderChatMessages.$inferSelect;
 export type WalletTransaction = typeof walletTransactions.$inferSelect;
+export type NewWalletTransaction = typeof walletTransactions.$inferInsert;
+export type PendingPayment = typeof pendingPayments.$inferSelect;
+export type NewPendingPayment = typeof pendingPayments.$inferInsert;
 export type Coupon = typeof coupons.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
+export type WithdrawalRequest = typeof withdrawalRequests.$inferSelect;
+export type CardToCardReceipt = typeof cardToCardReceipts.$inferSelect;
+export type BusinessNetworkItem = typeof businessNetwork.$inferSelect;
+export type AboutContentItem = typeof aboutContent.$inferSelect;
+export type MenuItem = typeof menuItems.$inferSelect;
+export type GameScore = typeof gameScores.$inferSelect;
+export type NewGameScore = typeof gameScores.$inferInsert;
+export type GameConfigItem = typeof gameConfig.$inferSelect;
+export type NewsFeed = typeof newsFeeds.$inferSelect;
+export type PredefinedAdmin = typeof predefinedAdmins.$inferSelect;
+export type ContentEditLog = typeof contentEditLogs.$inferSelect;

@@ -6,24 +6,35 @@ import { useEffect, useState, useRef } from "react";
 import { Menu, X, Zap, User, LogIn, LogOut, Shield, Settings, Search } from "lucide-react";
 import { motion } from "framer-motion";
 import { ThemeToggle } from "@/components/ThemeToggle";
-
-const NAV_LINKS = [
-  { href: "/", label: "خانه" },
-  { href: "/services", label: "خدمات" },
-  { href: "/track", label: "پیگیری سفارش" },
-  { href: "/about", label: "درباره ما" },
-  { href: "/contact", label: "تماس با ما" },
-];
+import { DynamicIcon } from "@/components/DynamicIcon";
+import { useCMS } from "@/components/cms/CMSContext";
+import { Editable } from "@/components/cms/Editable";
 
 export function SiteHeader() {
   const pathname = usePathname();
   const router = useRouter();
+  const { data } = useCMS();
   const [open, setOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [services, setServices] = useState<any[]>([]);
   const searchRef = useRef<HTMLDivElement>(null);
+
+  const headerLinks = data.menuItems
+    .filter((m) => m.location === "HEADER" && m.isActive !== false)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  const navLinks = headerLinks.length > 0
+    ? headerLinks.map((m) => ({ href: m.link, label: m.label, icon: m.iconName }))
+    : [
+        { href: "/", label: "خانه", icon: "Home" },
+        { href: "/services", label: "خدمات", icon: "LayoutGrid" },
+        { href: "/waiting-room", label: "اتاق انتظار", icon: "Coffee" },
+        { href: "/track", label: "پیگیری سفارش", icon: "Search" },
+        { href: "/about", label: "درباره ما", icon: "Info" },
+        { href: "/contact", label: "تماس با ما", icon: "Phone" },
+      ];
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(d => { if (d.user) setUser(d.user); }).catch(() => {});
@@ -52,7 +63,7 @@ export function SiteHeader() {
 
   const goToService = (s: any) => {
     setSearchOpen(false); setSearchQuery("");
-    router.push(`/order?category=${s.categoryId}&service=${s.id}`);
+    router.push(`/order?category=${s.categoryId}&serviceId=${s.id}`);
   };
 
   return (
@@ -73,7 +84,7 @@ export function SiteHeader() {
 
         {/* Desktop Nav with animated active pill */}
         <nav className="hidden items-center gap-1 lg:flex relative">
-          {NAV_LINKS.map((link) => {
+          {navLinks.map((link) => {
             const active = pathname === link.href;
             return (
               <Link
@@ -175,7 +186,7 @@ export function SiteHeader() {
                 <p className="px-3 py-3 text-xs text-[var(--ink-dim)] text-center">نتیجه‌ای یافت نشد</p>
               ) : (
                 filteredServices.slice(0, 6).map(s => (
-                  <button key={s.id} onClick={() => { setOpen(false); setSearchQuery(""); router.push(`/order?category=${s.categoryId}&service=${s.id}`); }}
+                  <button key={s.id} onClick={() => { setOpen(false); setSearchQuery(""); router.push(`/order?category=${s.categoryId}&serviceId=${s.id}`); }}
                     className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-[var(--ink)] hover:bg-white/5 text-right">
                     <span className="truncate">{s.serviceName}</span>
                   </button>
@@ -200,7 +211,7 @@ export function SiteHeader() {
             </Link>
           )}
 
-          {NAV_LINKS.map(link => (
+          {navLinks.map(link => (
             <Link key={link.href} href={link.href} onClick={() => setOpen(false)}
               className={`rounded-xl px-4 py-2.5 text-sm ${pathname === link.href ? "bg-white/10 font-medium text-[var(--ink)]" : "text-[var(--ink-dim)]"}`}>
               {link.label}

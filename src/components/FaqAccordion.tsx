@@ -2,45 +2,44 @@
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { Editable } from "./cms/Editable";
 
-const FAQS = [
-  {
-    q: "چطور بدون حضور فیزیکی سفارش بدم؟",
-    a: "کافیه از صفحه «ثبت سفارش» خدمت موردنظرتون رو انتخاب کنید، توضیحات و فایل لازم (در صورت نیاز) رو بارگذاری کنید و اطلاعات تماستون رو وارد کنید. یک کد رهگیری دریافت می‌کنید و تیم کیانت کارتون رو شروع می‌کنه.",
-  },
-  {
-    q: "فایل نهایی رو چطور تحویل می‌گیرم؟",
-    a: "به‌محض تکمیل سفارش، وضعیت اون در صفحه «پیگیری سفارش» به «آماده تحویل» تغییر می‌کنه و می‌تونید فایل PDF نهایی همراه با گزارش کار رو مستقیماً دانلود کنید.",
-  },
-  {
-    q: "هزینه هر سفارش چطور محاسبه می‌شه؟",
-    a: "قیمت هر خدمت به‌صورت شفاف در صفحه «خدمات» اعلام شده و بر اساس تعداد صفحه یا مقدار درخواستی محاسبه می‌شه. برای سفارش فوری ۳۰٪ به هزینه اضافه می‌شود.",
-  },
-  {
-    q: "امنیت مدارک و اطلاعات من تضمین می‌شه؟",
-    a: "تمام فایل‌ها و اطلاعات فقط برای انجام سفارش شما استفاده می‌شن و پس از تحویل نهایی، امکان حذف کامل اطلاعات از سرور رو در صورت درخواست فراهم می‌کنیم.",
-  },
-  {
-    q: "چقدر طول می‌کشه سفارشم آماده بشه؟",
-    a: "بسته به نوع خدمت، بین چند ساعت تا حداکثر ۲ روز کاری. زمان تقریبی هر خدمت در کارت همون خدمت درج شده است.",
-  },
-];
+export interface FaqItem {
+  q: string;
+  a: string;
+}
 
-export function FaqAccordion() {
+interface FaqAccordionProps {
+  items?: FaqItem[];
+}
+
+export function FaqAccordion({ items }: FaqAccordionProps) {
   const [open, setOpen] = useState<number | null>(0);
+
+  const faqs = items?.length ? items : [
+    { q: "چطور بدون حضور فیزیکی سفارش بدم؟", a: "کافیه از صفحه «ثبت سفارش» خدمت موردنظرتون رو انتخاب کنید، توضیحات و فایل لازم (در صورت نیاز) رو بارگذاری کنید و اطلاعات تماستون رو وارد کنید. یک کد رهگیری دریافت می‌کنید و تیم کیانت کارتون رو شروع می‌کنه." },
+    { q: "فایل نهایی رو چطور تحویل می‌گیرم؟", a: "به‌محض تکمیل سفارش، وضعیت اون در صفحه «پیگیری سفارش» به «آماده تحویل» تغییر می‌کنه و می‌تونید فایل PDF نهایی همراه با گزارش کار رو مستقیماً دانلود کنید." },
+    { q: "هزینه هر سفارش چطور محاسبه می‌شه؟", a: "قیمت هر خدمت به‌صورت شفاف در صفحه «خدمات» اعلام شده و بر اساس تعداد صفحه یا مقدار درخواستی محاسبه می‌شه. برای سفارش فوری ۳۰٪ به هزینه اضافه می‌شود." },
+    { q: "امنیت مدارک و اطلاعات من تضمین می‌شه؟", a: "تمام فایل‌ها و اطلاعات فقط برای انجام سفارش شما استفاده می‌شن و پس از تحویل نهایی، امکان حذف کامل اطلاعات از سرور رو در صورت درخواست فراهم می‌کنیم." },
+    { q: "چقدر طول می‌کشه سفارشم آماده بشه؟", a: "بسته به نوع خدمت، بین چند ساعت تا حداکثر ۲ روز کاری. زمان تقریبی هر خدمت در کارت همون خدمت درج شده است." },
+  ];
 
   return (
     <div className="flex flex-col gap-3">
-      {FAQS.map((item, index) => {
+      {faqs.map((item, index) => {
         const isOpen = open === index;
         return (
-          <div key={item.q} className="glass overflow-hidden rounded-2xl">
+          <div key={index} className="glass overflow-hidden rounded-2xl">
             <button
               type="button"
               onClick={() => setOpen(isOpen ? null : index)}
               className="flex w-full items-center justify-between gap-4 px-5 py-4 text-right"
             >
-              <span className="text-sm font-medium text-[var(--ink)] sm:text-base">{item.q}</span>
+              <span className="text-sm font-medium text-[var(--ink)] sm:text-base">
+                <Editable table="site_settings" recordId="faq_items" field="value" type="json" value={faqs} label="لیست سوالات">
+                  {item.q}
+                </Editable>
+              </span>
               <ChevronDown
                 size={18}
                 className={`shrink-0 text-[var(--ink-dim)] transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}

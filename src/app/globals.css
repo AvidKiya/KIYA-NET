@@ -293,20 +293,36 @@ body {
 .stagger-children > *:nth-child(6) { animation-delay: 0.3s; }
 .stagger-children > *:nth-child(7) { animation-delay: 0.36s; }
 
+:root {
+  --pulse-color: rgba(33, 241, 168, 0.55);
+}
+[data-theme="light"] {
+  --pulse-color: rgba(0, 71, 65, 0.45);
+}
 .pulse-dot {
-  box-shadow: 0 0 0 0 rgba(33, 241, 168, 0.6);
+  box-shadow: 0 0 0 0 var(--pulse-color);
   animation: pulse-dot 2s infinite;
 }
 @keyframes pulse-dot {
-  0% { box-shadow: 0 0 0 0 rgba(33, 241, 168, 0.55); }
-  70% { box-shadow: 0 0 0 10px rgba(33, 241, 168, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(33, 241, 168, 0); }
+  0% { box-shadow: 0 0 0 0 var(--pulse-color); }
+  70% { box-shadow: 0 0 0 10px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
 }
-[data-theme="light"] .pulse-dot {
-  box-shadow: 0 0 0 0 rgba(0, 71, 65, 0.5);
+
+/* ---------- Live Edit CMS ---------- */
+[data-live-edit="true"] [data-editable] {
+  outline: 1px dashed rgba(33, 241, 168, 0.35);
+  outline-offset: 2px;
+  border-radius: 0.25rem;
 }
-[data-theme="light"] @keyframes pulse-dot {
-  0% { box-shadow: 0 0 0 0 rgba(0, 71, 65, 0.45); }
-  70% { box-shadow: 0 0 0 10px rgba(0, 71, 65, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(0, 71, 65, 0); }
+[data-live-edit="true"] [data-editable]:hover {
+  outline: 1px dashed rgba(33, 241, 168, 0.8);
+  background: rgba(33, 241, 168, 0.06);
+}
+[data-live-edit="true"] [data-editable] .editable-pencil {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+[data-live-edit="true"] [data-editable]:hover .editable-pencil {
+  opacity: 1;
 }

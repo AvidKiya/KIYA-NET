@@ -1,10 +1,12 @@
 export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { orders, services, users } from "@/db/schema";
+import { orders, services, users, pendingPayments } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
+import { nanoid } from "nanoid";
 import { getCurrentUser } from "@/lib/auth";
+import { createPaymentRequest } from "@/lib/payment/gateway";
 
 export async function GET(req: NextRequest) {
   try {
@@ -87,13 +89,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "لطفاً وارد شوید" }, { status: 401 });
     }
 
-    const { serviceId, userNotes } = await req.json();
+    const { serviceId, userNotes, quantity, urgent, paymentMethod } = await req.json();
 
     if (!serviceId) {
       return NextResponse.json({ error: "خدمت انتخاب نشده است" }, { status: 400 });
     }
 
-    // Get service price
     const service = await db
       .select()
       .from(services)
@@ -105,7 +106,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "خدمت یافت نشد" }, { status: 404 });
     }
 
-    // Get user
     const user = await db
       .select()
       .from(users)
@@ -118,21 +118,25 @@ export async function POST(req: NextRequest) {
     }
 
     const orderId = `KIYA-${Math.floor(Math.random() * 9000) + 1000}`;
-    const totalAmount = parseFloat(service.kiyanetPrice);
+    const baseAmount = parseFloat(service.kiyanetPrice) * (Number(quantity) || 1);
+    const surchargePercent = urgent ? 0.3 : 0;
+    const totalAmount = Math.round(baseAmount * (1 + surchargePercent));
 
-    // Check wallet balance
-    const walletBalance = parseFloat(user.walletBalance || "0");
     let paymentStatus: "PAID" | "PENDING" = "PENDING";
-    let paymentMethod: "WALLET" | "ONLINE_GATEWAY" | null = null;
+    let finalPaymentMethod: "WALLET" | "ONLINE_GATEWAY" | "CARD_TO_CARD" | null = null;
+    let paymentUrl: string | null = null;
+    let gatewayAuthority: string | null = null;
 
-    if (walletBalance >= totalAmount) {
-      // Auto-pay from wallet
+    if (paymentMethod === "WALLET") {
+      const walletBalance = parseFloat(user.walletBalance || "0");
+      if (walletBalance < totalAmount) {
+        return NextResponse.json({ error: "موجودی کیف پول کافی نیست" }, { status: 400 });
+      }
       await db
         .update(users)
-        .set({ walletBalance: (walletBalance - totalAmount).toFixed(2) })
+        .set({ walletBalance: (walletBalance - totalAmount).toFixed(2), updatedAt: new Date() })
         .where(eq(users.id, user.id));
 
-      // Record wallet transaction
       const { walletTransactions } = await import("@/db/schema");
       await db.insert(walletTransactions).values({
         id: uuid(),
@@ -141,10 +145,47 @@ export async function POST(req: NextRequest) {
         type: "PAYMENT",
         orderId,
         description: `پرداخت بابت سفارش ${orderId} - ${service.serviceName}`,
-      });
+      } as any);
 
       paymentStatus = "PAID";
-      paymentMethod = "WALLET";
+      finalPaymentMethod = "WALLET";
+    } else if (paymentMethod === "ONLINE_GATEWAY") {
+      const authorityId = nanoid();
+      const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://kiya-net.pages.dev"}/api/payment/callback?authority=${authorityId}`;
+      const gatewayResult = await createPaymentRequest({
+        amount: totalAmount,
+        description: `پرداخت سفارش ${orderId}`,
+        callbackUrl,
+        mobile: user.phoneNumber || undefined,
+        metadata: { internalAuthority: authorityId, type: "ORDER_PAYMENT", orderId },
+      });
+
+      if (!gatewayResult.success || !gatewayResult.authority) {
+        return NextResponse.json({ error: gatewayResult.error || "خطا در ایجاد درخواست پرداخت" }, { status: 500 });
+      }
+
+      await db.insert(pendingPayments).values({
+        id: authorityId,
+        userId: user.id,
+        type: "ORDER_PAYMENT",
+        amount: String(totalAmount),
+        gateway: gatewayResult.gateway,
+        authority: gatewayResult.authority,
+        status: "PENDING",
+        orderId,
+        description: `پرداخت سفارش ${orderId}`,
+        callbackUrl,
+        metadata: { internalAuthority: authorityId, externalAuthority: gatewayResult.authority },
+      });
+
+      paymentUrl = gatewayResult.paymentUrl || null;
+      gatewayAuthority = authorityId;
+      finalPaymentMethod = "ONLINE_GATEWAY";
+    } else if (paymentMethod === "CARD_TO_CARD") {
+      finalPaymentMethod = "CARD_TO_CARD";
+      paymentStatus = "PENDING";
+    } else {
+      return NextResponse.json({ error: "روش پرداخت نامعتبر" }, { status: 400 });
     }
 
     await db.insert(orders).values({
@@ -154,19 +195,12 @@ export async function POST(req: NextRequest) {
       status: "PENDING_ASSIGNMENT",
       totalAmount: totalAmount.toFixed(2),
       paymentStatus,
-      paymentMethod,
+      paymentMethod: finalPaymentMethod as any,
       userNotes,
     });
 
-    // Create notification for admins/operators
     const { notifications } = await import("@/db/schema");
-
-    // Find operators
-    const operators = await db
-      .select()
-      .from(users)
-      .where(eq(users.role, "OPERATOR"));
-
+    const operators = await db.select().from(users).where(eq(users.role, "OPERATOR"));
     for (const op of operators) {
       await db.insert(notifications).values({
         id: uuid(),
@@ -183,8 +217,10 @@ export async function POST(req: NextRequest) {
         id: orderId,
         totalAmount,
         paymentStatus,
-        paymentMethod,
+        paymentMethod: finalPaymentMethod,
         serviceName: service.serviceName,
+        paymentUrl,
+        gatewayAuthority,
       },
     });
   } catch (error) {

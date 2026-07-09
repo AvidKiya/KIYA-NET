@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -10,16 +10,19 @@ import {
   CheckCircle2,
   Clock3,
   Copy,
+  CreditCard,
   FileText,
   Loader2,
   Paperclip,
   Sparkles,
+  Wallet,
   X,
 } from "lucide-react";
 import { GlassCard } from "@/components/GlassCard";
 import { ServiceIcon } from "@/components/ServiceIcon";
 import { formatToman } from "@/lib/format";
-import { serviceCategories, prdCategories } from "@/lib/services";
+import { useCMS } from "@/components/cms/CMSContext";
+import { DynamicIcon } from "@/components/DynamicIcon";
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
@@ -35,48 +38,94 @@ function readFileAsDataUrl(file: File): Promise<string> {
 type SuccessState = {
   trackingCode: string;
   estimatedPrice: number;
+  paymentUrl?: string | null;
+  paymentMethod?: string;
+};
+
+type DbService = {
+  id: number;
+  categoryId: string;
+  serviceName: string;
+  description: string | null;
+  kiyanetPrice: string;
+  estimatedTimeMinutes: number;
+  estimatedTimeText: string | null;
+  requiredDocuments: string[] | null;
+  unit: string;
+  discountPercent: string;
+};
+
+type Category = {
+  id: string;
+  name: string;
+  slug: string;
+  iconName: string;
+  color: string;
 };
 
 export function OrderForm() {
   const searchParams = useSearchParams();
-  const allCatsInit = [...serviceCategories, ...prdCategories];
-  const initialCategory = searchParams.get("category") ?? allCatsInit[0]?.slug ?? "";
-  const initialServiceParam = searchParams.get("service");
-  const initialService = initialServiceParam
-    ? (allCatsInit.find((c) => c.slug === initialCategory)?.items.find((i) => i.slug === initialServiceParam || String(i.price) === initialServiceParam || String((i as any).id) === initialServiceParam)?.slug ?? initialServiceParam)
-    : allCatsInit.find((c) => c.slug === initialCategory)?.items[0]?.slug ?? "";
+  const { data } = useCMS();
+  const categories = useMemo(
+    () => data.serviceCategories.filter((c) => c.isActive !== false).sort((a, b) => a.sortOrder - b.sortOrder),
+    [data.serviceCategories]
+  );
+  const allServices = useMemo(
+    () => data.services.filter((s) => s.isActive !== false).sort((a, b) => a.sortOrder - b.sortOrder),
+    [data.services]
+  );
+  const servicesByCategory = useMemo(() => {
+    const map: Record<string, DbService[]> = {};
+    for (const cat of categories) {
+      map[cat.id] = allServices.filter((s) => s.categoryId === cat.id);
+    }
+    return map;
+  }, [categories, allServices]);
+
+  const initialCategorySlug = searchParams.get("category") ?? categories[0]?.slug ?? "";
+  const initialCategory = categories.find((c) => c.slug === initialCategorySlug) ?? categories[0];
+  const initialServiceId = Number(searchParams.get("serviceId"));
+  const initialService = initialServiceId
+    ? allServices.find((s) => s.id === initialServiceId && s.categoryId === initialCategory?.id)
+    : servicesByCategory[initialCategory?.id || ""]?.[0];
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [categorySlug, setCategorySlug] = useState(initialCategory);
-  const [serviceSlug, setServiceSlug] = useState(initialService);
+  const [categoryId, setCategoryId] = useState(initialCategory?.id || "");
+  const [serviceId, setServiceId] = useState(initialService?.id);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [description, setDescription] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [urgent, setUrgent] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"WALLET" | "ONLINE_GATEWAY" | "CARD_TO_CARD">("WALLET");
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<SuccessState | null>(null);
   const [copied, setCopied] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
-  const allCategories = useMemo(() => [...serviceCategories, ...prdCategories], []);
-  const category = useMemo(
-    () => allCategories.find((c) => c.slug === categorySlug) ?? allCategories[0] ?? serviceCategories[0],
-    [categorySlug, allCategories],
-  );
-  const service = useMemo(
-    () => category.items.find((i) => i.slug === serviceSlug) ?? category.items[0],
-    [category, serviceSlug],
-  );
+  useEffect(() => {
+    if (categories.length > 0 && allServices.length > 0) setDataLoaded(true);
+  }, [categories, allServices]);
 
-  const estimatedPrice = Math.round(service.price * quantity * (urgent ? 1.3 : 1));
+  const category = useMemo(() => categories.find((c) => c.id === categoryId) ?? categories[0], [categoryId, categories]);
+  const categoryServices = useMemo(() => servicesByCategory[category?.id || ""] || [], [category, servicesByCategory]);
+  const service = useMemo(() => categoryServices.find((s) => s.id === serviceId) ?? categoryServices[0], [categoryServices, serviceId]);
 
-  function handleCategoryChange(slug: string) {
-    setCategorySlug(slug);
-    const nextCategory = serviceCategories.find((c) => c.slug === slug);
-    setServiceSlug(nextCategory?.items[0]?.slug ?? "");
+  useEffect(() => {
+    if (category && categoryServices.length > 0 && !categoryServices.find((s) => s.id === serviceId)) {
+      setServiceId(categoryServices[0].id);
+    }
+  }, [category, categoryServices, serviceId]);
+
+  const estimatedPrice = service ? Math.round(Number(service.kiyanetPrice) * quantity * (urgent ? 1.3 : 1)) : 0;
+
+  function handleCategoryChange(id: string) {
+    setCategoryId(id);
+    const nextServices = servicesByCategory[id] || [];
+    setServiceId(nextServices[0]?.id);
   }
 
   async function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
@@ -100,6 +149,10 @@ export function OrderForm() {
     e.preventDefault();
     setError(null);
 
+    if (!service) {
+      setError("لطفاً یک خدمت انتخاب کنید.");
+      return;
+    }
     if (!fullName.trim() || fullName.trim().length < 3) {
       setError("نام و نام‌خانوادگی را کامل وارد کنید.");
       return;
@@ -126,26 +179,28 @@ export function OrderForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          categorySlug: category.slug,
-          serviceSlug: service.slug,
-          fullName: fullName.trim(),
-          phone: phone.trim(),
-          email: email.trim() || undefined,
-          description: description.trim(),
+          serviceId: service.id,
+          userNotes: description.trim(),
           quantity,
           urgent,
+          paymentMethod,
           attachment,
         }),
       });
 
       const json = await res.json();
-      if (!res.ok || !json.ok) {
+      if (!res.ok || !json.success) {
         setError(json.error ?? "ثبت سفارش با خطا مواجه شد.");
         setSubmitting(false);
         return;
       }
 
-      setSuccess({ trackingCode: json.order.trackingCode, estimatedPrice: json.order.estimatedPrice });
+      setSuccess({
+        trackingCode: json.order.id,
+        estimatedPrice: json.order.totalAmount,
+        paymentUrl: json.order.paymentUrl,
+        paymentMethod: json.order.paymentMethod,
+      });
       setStep(3);
     } catch {
       setError("ارتباط با سرور برقرار نشد. دوباره تلاش کنید.");
@@ -163,6 +218,9 @@ export function OrderForm() {
   }
 
   if (success) {
+    const isGateway = success.paymentMethod === "ONLINE_GATEWAY";
+    const isCardToCard = success.paymentMethod === "CARD_TO_CARD";
+
     return (
       <GlassCard className="mx-auto max-w-2xl p-8 text-center sm:p-12">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-400/15 text-emerald-300">
@@ -186,12 +244,30 @@ export function OrderForm() {
           مبلغ قابل پرداخت: <span className="text-emerald-300">{formatToman(success.estimatedPrice)}</span>
         </p>
 
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+        {isGateway && success.paymentUrl && (
+          <div className="mt-5">
+            <a href={success.paymentUrl} className="btn-brand flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold">
+              <CreditCard size={16} /> پرداخت آنلاین
+            </a>
+            <p className="mt-2 text-xs text-[var(--ink-dim)]">پس از پرداخت، به‌صورت خودکار به سایت بازمی‌گردید.</p>
+          </div>
+        )}
+
+        {isCardToCard && (
+          <div className="mt-5 rounded-xl bg-amber-400/10 p-4 text-xs leading-6 text-amber-200">
+            <p>برای تکمیل سفارش، مبلغ را به کارت بانکی اعلام شده واریز کنید و رسید را از طریق صفحه کیف پول ارسال کنید.</p>
+            <Link href="/wallet/card-to-card" className="btn-glass mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium">
+              <CreditCard size={14} /> ارسال رسید کارت به کارت
+            </Link>
+          </div>
+        )}
+
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <a
             href={`/api/orders/${success.trackingCode}/document?type=receipt`}
             target="_blank"
             rel="noreferrer"
-            className="btn-brand flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold"
+            className="btn-glass flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-medium text-[var(--ink)]"
           >
             <FileText size={16} />
             دانلود رسید PDF
@@ -237,19 +313,19 @@ export function OrderForm() {
           <div className="mt-6">
             <label className="mb-2 block text-xs font-medium text-[var(--ink-dim)]">دسته‌بندی خدمت</label>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {[...serviceCategories, ...prdCategories].slice(0, 13).map((c) => (
+              {categories.map((c) => (
                 <button
                   type="button"
-                  key={c.slug}
-                  onClick={() => handleCategoryChange(c.slug)}
+                  key={c.id}
+                  onClick={() => handleCategoryChange(c.id)}
                   className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-right text-xs transition-colors sm:text-sm ${
-                    categorySlug === c.slug
+                    categoryId === c.id
                       ? "border-emerald-400/60 bg-emerald-400/10 text-[var(--ink)]"
                       : "border-white/10 bg-white/5 text-[var(--ink-dim)] hover:text-[var(--ink)]"
                   }`}
                 >
-                  <ServiceIcon name={c.icon} size={15} />
-                  <span className="truncate">{c.title}</span>
+                  <ServiceIcon name={c.iconName} size={15} />
+                  <span className="truncate">{c.name}</span>
                 </button>
               ))}
             </div>
@@ -258,11 +334,11 @@ export function OrderForm() {
           <div className="mt-6">
             <label className="mb-2 block text-xs font-medium text-[var(--ink-dim)]">نوع خدمت</label>
             <div className="flex flex-col gap-2">
-              {category.items.map((item) => (
+              {categoryServices.map((item) => (
                 <label
-                  key={item.slug}
+                  key={item.id}
                   className={`flex cursor-pointer items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 transition-colors ${
-                    serviceSlug === item.slug
+                    serviceId === item.id
                       ? "border-emerald-400/60 bg-emerald-400/10"
                       : "border-white/10 bg-white/5 hover:border-white/20"
                   }`}
@@ -272,20 +348,20 @@ export function OrderForm() {
                       type="radio"
                       name="service"
                       className="mt-1 accent-emerald-400"
-                      checked={serviceSlug === item.slug}
-                      onChange={() => setServiceSlug(item.slug)}
+                      checked={serviceId === item.id}
+                      onChange={() => setServiceId(item.id)}
                     />
                     <div>
-                      <p className="text-sm font-bold text-[var(--ink)]">{item.title}</p>
-                      <p className="mt-1 text-xs leading-5 text-[var(--ink-dim)]">{item.description}</p>
+                      <p className="text-sm font-bold text-[var(--ink)]">{item.serviceName}</p>
+                      <p className="mt-1 text-xs leading-5 text-[var(--ink-dim)]">{item.description || "—"}</p>
                       <p className="mt-1 flex items-center gap-1 text-[11px] text-[var(--ink-dim)]">
                         <Clock3 size={11} />
-                        {item.deliveryTime}
+                        {item.estimatedTimeText || `${item.estimatedTimeMinutes} دقیقه`}
                       </p>
                     </div>
                   </div>
                   <span className="shrink-0 text-xs font-bold text-emerald-300 sm:text-sm">
-                    {formatToman(item.price)}
+                    {formatToman(Number(item.kiyanetPrice))}
                   </span>
                 </label>
               ))}
@@ -295,7 +371,8 @@ export function OrderForm() {
           <button
             type="button"
             onClick={goToStep2}
-            className="btn-brand mt-8 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold"
+            disabled={!categoryServices.length}
+            className="btn-brand mt-8 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold disabled:opacity-60"
           >
             ادامه ثبت سفارش
             <ArrowLeft size={16} />
@@ -318,11 +395,11 @@ export function OrderForm() {
 
             <div className="mt-5 flex items-center gap-3 rounded-2xl bg-white/5 p-4">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-emerald-300">
-                <ServiceIcon name={category.icon} size={18} />
+                <ServiceIcon name={category?.iconName} size={18} />
               </div>
               <div>
-                <p className="text-sm font-bold text-[var(--ink)]">{service.title}</p>
-                <p className="text-xs text-[var(--ink-dim)]">{category.title}</p>
+                <p className="text-sm font-bold text-[var(--ink)]">{service?.serviceName}</p>
+                <p className="text-xs text-[var(--ink-dim)]">{category?.name}</p>
               </div>
             </div>
 
@@ -413,10 +490,48 @@ export function OrderForm() {
               سفارش فوری (اولویت‌دار) — ۳۰٪ هزینه اضافه
             </label>
 
+            <div className="mt-4">
+              <label className="mb-2 block text-xs font-medium text-[var(--ink-dim)]">روش پرداخت</label>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {[
+                  { v: "WALLET", l: "کیف پول", i: Wallet, d: "پرداخت سریع از موجودی" },
+                  { v: "ONLINE_GATEWAY", l: "درگاه آنلاین", i: CreditCard, d: "زرین‌پال / پی‌پینگ" },
+                  { v: "CARD_TO_CARD", l: "کارت به کارت", i: CreditCard, d: "واریز و ارسال رسید" },
+                ].map((m) => (
+                  <label
+                    key={m.v}
+                    className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${
+                      paymentMethod === (m.v as any)
+                        ? "border-emerald-400/60 bg-emerald-400/10"
+                        : "border-white/10 bg-white/5 hover:border-white/20"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      className="accent-emerald-400"
+                      checked={paymentMethod === (m.v as any)}
+                      onChange={() => setPaymentMethod(m.v as any)}
+                    />
+                    <div>
+                      <p className="text-xs font-bold text-[var(--ink)] flex items-center gap-1"><m.i size={13} /> {m.l}</p>
+                      <p className="text-[10px] text-[var(--ink-dim)]">{m.d}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
             {error ? (
               <div className="mt-4 flex items-center gap-2 rounded-xl bg-red-400/10 px-4 py-3 text-xs text-red-300">
                 <AlertCircle size={15} />
                 {error}
+              </div>
+            ) : null}
+
+            {dataLoaded && !service ? (
+              <div className="mt-4 flex items-center gap-2 rounded-xl bg-red-400/10 px-4 py-3 text-xs text-red-300">
+                <AlertCircle size={14} /> خدمتی در این دسته‌بندی یافت نشد. لطفاً دسته‌بندی دیگری انتخاب کنید.
               </div>
             ) : null}
 
@@ -427,7 +542,7 @@ export function OrderForm() {
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || !service}
               className="btn-brand mt-6 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold disabled:opacity-60"
             >
               {submitting ? <Loader2 size={16} className="animate-spin" /> : null}

@@ -3,13 +3,15 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Shield, Users, LayoutDashboard, ListOrdered, Wrench, Settings, CheckCircle2, Clock, Loader2,
+  Shield, Users, LayoutDashboard, ListOrdered, Settings, CheckCircle2, Clock, Loader2,
   AlertCircle, XCircle, RefreshCcw, UserCheck, Wallet, Save, Edit3, X, Lock, KeyRound,
-  Plus, Trash2, BadgePercent, CreditCard, Banknote, Upload, Search, ArrowLeft, TrendingUp, LogOut,
+  Plus, Trash2, BadgePercent, CreditCard, Banknote, Upload, Search, ArrowLeft, LogOut,
+  Bot, MessageCircle, Send,
 } from "lucide-react";
 import { GlassCard } from "@/components/GlassCard";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
+import { CMSAdminPanel } from "@/components/cms/CMSAdminPanel";
 
 const SM: Record<string,{label:string;icon:any;color:string;bg:string}> = {
   PENDING_ASSIGNMENT:{label:"در انتظار",icon:Clock,color:"text-amber-400",bg:"bg-amber-400/10 border-amber-400/20"},
@@ -40,6 +42,7 @@ export default function AdminPage() {
   const [loginPass, setLoginPass] = useState("");
   const [loginErr, setLoginErr] = useState("");
   const [needsPwChange, setNeedsPwChange] = useState(false);
+  const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [pwChangeMsg, setPwChangeMsg] = useState("");
 
@@ -66,6 +69,31 @@ export default function AdminPage() {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawNote, setWithdrawNote] = useState("");
 
+  // Bot management
+  const [telegramToken, setTelegramToken] = useState("");
+  const [baleToken, setBaleToken] = useState("");
+  const [publicUrl, setPublicUrl] = useState("");
+  const [botTestLoading, setBotTestLoading] = useState<{ telegram: boolean; bale: boolean }>({ telegram: false, bale: false });
+  const [botTestResult, setBotTestResult] = useState<{ telegram: string | null; bale: string | null }>({ telegram: null, bale: null });
+  const [webhookLoading, setWebhookLoading] = useState<{ telegram: boolean; bale: boolean }>({ telegram: false, bale: false });
+  const [webhookResult, setWebhookResult] = useState<{ telegram: string | null; bale: string | null }>({ telegram: null, bale: null });
+  const [tokenSaveMsg, setTokenSaveMsg] = useState<{ telegram: string | null; bale: string | null }>({ telegram: null, bale: null });
+
+  // Card-to-card receipts
+  const [receipts, setReceipts] = useState<any[]>([]);
+  const [receiptsLoading, setReceiptsLoading] = useState(false);
+  const [receiptFilter, setReceiptFilter] = useState("all");
+  const [receiptActionMsg, setReceiptActionMsg] = useState<string | null>(null);
+  const [receiptRejectReason, setReceiptRejectReason] = useState("");
+  const [receiptRejectingId, setReceiptRejectingId] = useState<string | null>(null);
+
+  // Payment gateway settings
+  const [paymentGateway, setPaymentGateway] = useState("test");
+  const [zarinpalMerchant, setZarinpalMerchant] = useState("");
+  const [paypingToken, setPaypingToken] = useState("");
+  const [paymentSettingsMsg, setPaymentSettingsMsg] = useState<string | null>(null);
+
+
   const fmt = (p: string) => Number(p || 0).toLocaleString("fa-IR");
   const fd = (d: string) => new Date(d).toLocaleDateString("fa-IR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
@@ -89,6 +117,11 @@ export default function AdminPage() {
     setLoading(false);
   };
 
+  useEffect(() => {
+    if (tab === "receipts") loadReceipts();
+    if (tab === "settings") loadPaymentSettings();
+  }, [tab]);
+
   const handleLogin = async () => {
     setLoginErr("");
     if (!loginPhone || !loginPass) { setLoginErr("شماره و رمز را وارد کنید"); return; }
@@ -108,9 +141,9 @@ export default function AdminPage() {
   const handleChangePassword = async () => {
     if (!newPw || newPw.length < 8) { setPwChangeMsg("حداقل ۸ کاراکتر"); return; }
     try {
-      const res = await fetch("/api/auth/admin-change-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ newPassword: newPw }) });
+      const res = await fetch("/api/auth/admin-change-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw }) });
       const d = await res.json();
-      if (d.success) { setNeedsPwChange(false); setPwChangeMsg(""); }
+      if (d.success) { setNeedsPwChange(false); setPwChangeMsg(""); setCurrentPw(""); setNewPw(""); }
       else setPwChangeMsg(d.error);
     } catch { setPwChangeMsg("خطا"); }
   };
@@ -136,6 +169,115 @@ export default function AdminPage() {
     } catch {}
   };
 
+  const saveBotToken = async (platform: "telegram" | "bale") => {
+    const token = platform === "telegram" ? telegramToken : baleToken;
+    if (!token) return;
+    try {
+      const res = await fetch("/api/admin/bots/token", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ platform, token }) });
+      const d = await res.json();
+      setTokenSaveMsg(prev => ({ ...prev, [platform]: d.success ? "ذخیره شد" : d.error || "خطا" }));
+      setTimeout(() => setTokenSaveMsg(prev => ({ ...prev, [platform]: null })), 3000);
+    } catch {
+      setTokenSaveMsg(prev => ({ ...prev, [platform]: "خطا در اتصال" }));
+    }
+  };
+
+  const testBot = async (platform: "telegram" | "bale") => {
+    setBotTestLoading(prev => ({ ...prev, [platform]: true }));
+    setBotTestResult(prev => ({ ...prev, [platform]: null }));
+    try {
+      const res = await fetch("/api/admin/bots/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ platform }) });
+      const d = await res.json();
+      setBotTestResult(prev => ({ ...prev, [platform]: d.success ? `فعال: @${d.bot?.username || "نامشخص"}` : d.error || "خطا" }));
+    } catch {
+      setBotTestResult(prev => ({ ...prev, [platform]: "خطا در اتصال" }));
+    } finally {
+      setBotTestLoading(prev => ({ ...prev, [platform]: false }));
+    }
+  };
+
+  const setupWebhook = async (platform: "telegram" | "bale") => {
+    if (!publicUrl) return;
+    setWebhookLoading(prev => ({ ...prev, [platform]: true }));
+    setWebhookResult(prev => ({ ...prev, [platform]: null }));
+    try {
+      const res = await fetch("/api/admin/bots/setup-webhook", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ platform, publicUrl }) });
+      const d = await res.json();
+      setWebhookResult(prev => ({ ...prev, [platform]: d.success ? `Webhook تنظیم شد: ${d.webhookUrl}` : d.error || "خطا" }));
+    } catch {
+      setWebhookResult(prev => ({ ...prev, [platform]: "خطا در اتصال" }));
+    } finally {
+      setWebhookLoading(prev => ({ ...prev, [platform]: false }));
+    }
+  };
+
+  const loadReceipts = async () => {
+    setReceiptsLoading(true);
+    try {
+      const res = await fetch("/api/admin/receipts");
+      const d = await res.json();
+      if (d.receipts) setReceipts(d.receipts);
+    } catch {
+      setReceipts([]);
+    } finally {
+      setReceiptsLoading(false);
+    }
+  };
+
+  const approveReceipt = async (id: string) => {
+    try {
+      const res = await fetch(`/api/admin/receipts/${id}/approve`, { method: "POST" });
+      const d = await res.json();
+      setReceiptActionMsg(d.success ? "رسید تأیید و موجودی شارژ شد" : d.error || "خطا");
+      loadReceipts();
+      setTimeout(() => setReceiptActionMsg(null), 3000);
+    } catch {
+      setReceiptActionMsg("خطا در تأیید رسید");
+    }
+  };
+
+  const rejectReceipt = async (id: string) => {
+    if (!receiptRejectReason.trim()) return;
+    try {
+      const res = await fetch(`/api/admin/receipts/${id}/reject`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: receiptRejectReason }) });
+      const d = await res.json();
+      setReceiptActionMsg(d.success ? "رسید رد شد" : d.error || "خطا");
+      setReceiptRejectingId(null);
+      setReceiptRejectReason("");
+      loadReceipts();
+      setTimeout(() => setReceiptActionMsg(null), 3000);
+    } catch {
+      setReceiptActionMsg("خطا در رد رسید");
+    }
+  };
+
+  const loadPaymentSettings = async () => {
+    try {
+      const res = await fetch("/api/admin/payment-settings");
+      const d = await res.json();
+      if (d.settings) {
+        setPaymentGateway(d.settings.PAYMENT_GATEWAY || "test");
+        setZarinpalMerchant(d.settings.ZARRINPAL_MERCHANT || "");
+        setPaypingToken(d.settings.PAYPING_TOKEN || "");
+      }
+    } catch {}
+  };
+
+  const savePaymentSettings = async () => {
+    try {
+      const res = await fetch("/api/admin/payment-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentGateway, zarinpalMerchant, paypingToken }),
+      });
+      const d = await res.json();
+      setPaymentSettingsMsg(d.success ? "تنظیمات پرداخت ذخیره شد" : d.error || "خطا");
+      setTimeout(() => setPaymentSettingsMsg(null), 3000);
+    } catch {
+      setPaymentSettingsMsg("خطا در ذخیره تنظیمات");
+    }
+  };
+
   const toggleModule = (mid: string) => {
     setNewOpModules(prev => prev.includes(mid) ? prev.filter(m => m !== mid) : [...prev, mid]);
   };
@@ -152,6 +294,9 @@ export default function AdminPage() {
     { k: "services", l: "نرخنامه", i: BadgePercent },
     { k: "operators", l: "اپراتورها", i: Users },
     { k: "payments", l: "مالی و پرداخت", i: Wallet },
+    { k: "receipts", l: "رسیدها", i: CreditCard },
+    { k: "bots", l: "ربات‌ها", i: Bot },
+    { k: "cms", l: "مدیریت محتوا", i: Edit3 },
     { k: "settings", l: "تنظیمات", i: Settings },
   ];
 
@@ -166,7 +311,7 @@ export default function AdminPage() {
         <h1 className="mt-5 text-xl font-extrabold text-[var(--ink)]">ورود به پنل مدیریت</h1>
         <p className="mt-2 text-xs text-[var(--ink-dim)]">شماره موبایل و رمز عبور مدیریت را وارد کنید</p>
         <div className="mt-6 space-y-3">
-          <input value={loginPhone} onChange={e => setLoginPhone(e.target.value)} type="tel" placeholder="شماره موبایل (مثلاً ۰۹۱۲۳۴۵۶۷۸۹)" dir="ltr" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60 text-left" />
+          <input value={loginPhone} onChange={e => setLoginPhone(e.target.value)} type="tel" placeholder="شماره موبایل (مثلاً ۰۶۹۰۹۰۱۰۳۸)" dir="ltr" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60 text-left" />
           <input value={loginPass} onChange={e => setLoginPass(e.target.value)} onKeyDown={e => e.key === "Enter" && handleLogin()} type="password" placeholder="رمز عبور" dir="ltr" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60 text-left tracking-widest" />
           {loginErr && <p className="text-xs text-red-400">{loginErr}</p>}
           <button onClick={handleLogin} disabled={authLoading} className="btn-brand flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold">
@@ -188,6 +333,7 @@ export default function AdminPage() {
         <h1 className="mt-5 text-xl font-extrabold text-[var(--ink)]">تغییر رمز عبور</h1>
         <p className="mt-2 text-xs text-[var(--ink-dim)]">برای امنیت بیشتر، رمز پیش‌فرض را تغییر دهید</p>
         <div className="mt-6 space-y-3">
+          <input value={currentPw} onChange={e => setCurrentPw(e.target.value)} type="password" placeholder="رمز فعلی (پیش‌فرض: AvidKiya*2397*7370#)" dir="ltr" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60 text-left" />
           <input value={newPw} onChange={e => setNewPw(e.target.value)} type="password" placeholder="رمز جدید (حداقل ۸ کاراکتر)" dir="ltr" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60 text-left" />
           {pwChangeMsg && <p className="text-xs text-red-400">{pwChangeMsg}</p>}
           <button onClick={handleChangePassword} className="btn-brand flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold"><Save size={16} /> ذخیره رمز جدید</button>
@@ -302,7 +448,7 @@ export default function AdminPage() {
                     <p className="text-[11px] text-[var(--ink-dim)]" dir="ltr">{op.phoneNumber}</p>
                     <div className="mt-2 flex flex-wrap gap-1">{(op.assignedModules || []).map((m: string) => { const mod = ALL_MODULES.find(mm => mm.id === m); return <span key={m} className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-[var(--ink-dim)]">{mod?.label || m}</span>; })}</div>
                     <div className="mt-2 flex items-center gap-3 text-xs">
-                      <span className="text-[var(--ink-dim)]">پورسانت: <span className="text-emerald-300 font-bold">{op.commission || 10}٪</span></span>
+                      <span className="text-[var(--ink-dim)]">پورسانت: <span className="text-emerald-300 font-bold">{op.commissionRate || 10}٪</span></span>
                       <span className="text-[var(--ink-dim)]">سفارش‌ها: <span className="text-[var(--ink)] font-bold">{op.orderCount || 0}</span></span>
                       <span className="text-[var(--ink-dim)]">درآمد: <span className="text-emerald-300 font-bold">{fmt(op.earnings || "0")} تومان</span></span>
                     </div>
@@ -343,6 +489,112 @@ export default function AdminPage() {
           </GlassCard>
         </motion.div>}
 
+        {/* ===== RECEIPTS ===== */}
+        {tab === "receipts" && <motion.div key="r" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+          <div className="flex items-center justify-between"><h2 className="text-lg font-extrabold text-[var(--ink)]">رسیدهای کارت به کارت</h2>
+            <button onClick={loadReceipts} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-medium"><RefreshCcw size={14} /> بروزرسانی</button>
+          </div>
+          {receiptActionMsg && <p className={`text-xs ${receiptActionMsg.includes("خطا") ? "text-red-400" : "text-emerald-300"}`}>{receiptActionMsg}</p>}
+          <div className="flex flex-wrap gap-2">{[{ k: "all", l: "همه" }, { k: "PENDING", l: "در انتظار" }, { k: "APPROVED", l: "تأیید شده" }, { k: "REJECTED", l: "رد شده" }].map(f => <button key={f.k} onClick={() => setReceiptFilter(f.k)} className={`rounded-full px-4 py-2 text-xs font-medium transition-all ${receiptFilter === f.k ? "bg-emerald-400/20 text-emerald-300" : "btn-glass text-[var(--ink-dim)]"}`}>{f.l}</button>)}</div>
+          {receiptsLoading ? <div className="py-10 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-emerald-300" /></div> :
+            <div className="space-y-3">
+              {receipts.filter(r => receiptFilter === "all" || r.status === receiptFilter).length === 0 ? <p className="text-center py-10 text-sm text-[var(--ink-dim)]">رسیدی یافت نشد</p> :
+                receipts.filter(r => receiptFilter === "all" || r.status === receiptFilter).map(r => (
+                  <GlassCard key={r.id} className="p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-bold text-[var(--ink)]">{r.firstName || ""} {r.lastName || ""}</p>
+                        <p className="text-[11px] text-[var(--ink-dim)]" dir="ltr">{r.phone}</p>
+                        <p className="mt-2 text-sm font-extrabold text-emerald-300">{fmt(r.amount)} تومان</p>
+                        <p className="text-[11px] text-[var(--ink-dim)]">{new Date(r.createdAt).toLocaleString("fa-IR")}</p>
+                        {r.orderId && <p className="text-[11px] text-[var(--ink-dim)]">سفارش: {r.orderId}</p>}
+                        <span className={`mt-2 inline-block rounded-full px-2.5 py-0.5 text-[10px] font-medium ${r.status === "PENDING" ? "bg-amber-400/10 text-amber-400" : r.status === "APPROVED" ? "bg-emerald-400/10 text-emerald-300" : "bg-red-400/10 text-red-300"}`}>{r.status === "PENDING" ? "در انتظار" : r.status === "APPROVED" ? "تأیید شده" : "رد شده"}</span>
+                        {r.rejectionReason && <p className="mt-1 text-[11px] text-red-300">دلیل رد: {r.rejectionReason}</p>}
+                      </div>
+                      {r.receiptUrl && <a href={r.receiptUrl} target="_blank" rel="noreferrer" className="btn-glass rounded-lg px-3 py-2 text-xs">مشاهده رسید</a>}
+                    </div>
+                    {r.status === "PENDING" && (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {receiptRejectingId === r.id ? (
+                          <div className="flex w-full flex-col gap-2 sm:flex-row">
+                            <input value={receiptRejectReason} onChange={e => setReceiptRejectReason(e.target.value)} placeholder="دلیل رد" className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-[var(--ink)] outline-none" />
+                            <button onClick={() => rejectReceipt(r.id)} className="btn-glass rounded-xl px-3 py-2 text-xs text-red-300">تایید رد</button>
+                            <button onClick={() => { setReceiptRejectingId(null); setReceiptRejectReason(""); }} className="btn-glass rounded-xl px-3 py-2 text-xs">انصراف</button>
+                          </div>
+                        ) : (
+                          <><button onClick={() => approveReceipt(r.id)} className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold"><CheckCircle2 size={13} /> تأیید</button><button onClick={() => setReceiptRejectingId(r.id)} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2 text-xs text-red-300"><XCircle size={13} /> رد</button></>
+                        )}
+                      </div>
+                    )}
+                  </GlassCard>
+                ))}
+            </div>
+          }
+        </motion.div>}
+
+        {/* ===== BOTS ===== */}
+        {tab === "bots" && <motion.div key="b" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+          <div className="flex items-center justify-between"><h2 className="text-lg font-extrabold text-[var(--ink)]">مدیریت ربات‌ها</h2></div>
+
+          <GlassCard className="p-6 space-y-4">
+            <h3 className="font-bold text-[var(--ink)] flex items-center gap-2"><Bot size={18} className="text-emerald-300" /> آدرس عمومی سایت (دامنه Cloudflare Pages)</h3>
+            <input value={publicUrl} onChange={e => setPublicUrl(e.target.value)} type="url" placeholder="https://kiya-net.pages.dev" dir="ltr" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60 text-left" />
+            <p className="text-xs text-[var(--ink-dim)]">این آدرس برای تنظیم webhook تلگرام و بله استفاده می‌شود و باید با https:// شروع شود.</p>
+          </GlassCard>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Telegram */}
+            <GlassCard className="p-6 space-y-4">
+              <div className="flex items-center gap-2"><MessageCircle size={18} className="text-blue-400" /><h3 className="font-bold text-[var(--ink)]">ربات تلگرام</h3></div>
+              <input value={telegramToken} onChange={e => setTelegramToken(e.target.value)} type="password" placeholder="توکن ربات تلگرام (مثلاً 123456:ABC-DEF...)" dir="ltr" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60 text-left" />
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => saveBotToken("telegram")} className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold"><Save size={14} /> ذخیره توکن</button>
+                <button onClick={() => testBot("telegram")} disabled={botTestLoading.telegram} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-medium"><Loader2 size={14} className={`${botTestLoading.telegram ? "animate-spin" : "hidden"}`} /> تست ربات</button>
+                <button onClick={() => setupWebhook("telegram")} disabled={webhookLoading.telegram || !publicUrl} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-medium"><Send size={14} /> تنظیم Webhook</button>
+              </div>
+              {tokenSaveMsg.telegram && <p className={`text-xs ${tokenSaveMsg.telegram === "ذخیره شد" ? "text-emerald-300" : "text-red-400"}`}>{tokenSaveMsg.telegram}</p>}
+              {botTestResult.telegram && <p className="text-xs text-blue-400">{botTestResult.telegram}</p>}
+              {webhookResult.telegram && <p className="text-xs text-[var(--ink-dim)] break-all">{webhookResult.telegram}</p>}
+            </GlassCard>
+
+            {/* Bale */}
+            <GlassCard className="p-6 space-y-4">
+              <div className="flex items-center gap-2"><MessageCircle size={18} className="text-emerald-300" /><h3 className="font-bold text-[var(--ink)]">ربات بله</h3></div>
+              <input value={baleToken} onChange={e => setBaleToken(e.target.value)} type="password" placeholder="توکن ربات بله" dir="ltr" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60 text-left" />
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => saveBotToken("bale")} className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold"><Save size={14} /> ذخیره توکن</button>
+                <button onClick={() => testBot("bale")} disabled={botTestLoading.bale} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-medium"><Loader2 size={14} className={`${botTestLoading.bale ? "animate-spin" : "hidden"}`} /> تست ربات</button>
+                <button onClick={() => setupWebhook("bale")} disabled={webhookLoading.bale || !publicUrl} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-medium"><Send size={14} /> تنظیم Webhook</button>
+              </div>
+              {tokenSaveMsg.bale && <p className={`text-xs ${tokenSaveMsg.bale === "ذخیره شد" ? "text-emerald-300" : "text-red-400"}`}>{tokenSaveMsg.bale}</p>}
+              {botTestResult.bale && <p className="text-xs text-emerald-300">{botTestResult.bale}</p>}
+              {webhookResult.bale && <p className="text-xs text-[var(--ink-dim)] break-all">{webhookResult.bale}</p>}
+            </GlassCard>
+          </div>
+
+          <GlassCard className="p-6">
+            <h3 className="font-bold text-[var(--ink)] mb-2">راهنمای تنظیم ربات</h3>
+            <ol className="space-y-2 text-xs leading-6 text-[var(--ink-dim)] list-decimal pr-4">
+              <li>ربات را از BotFather (تلگرام) یا Bale (myidbot) ایجاد کنید و توکن را کپی کنید.</li>
+              <li>توکن را در کادر بالا وارد کرده و «ذخیره توکن» را بزنید.</li>
+              <li>آدرس عمومی سایت (Cloudflare Pages) را در کادر بالا وارد کنید.</li>
+              <li>دکمه «تست ربات» را بزنید تا از فعال بودن ربات اطمینان حاصل کنید.</li>
+              <li>دکمه «تنظیم Webhook» را بزنید تا ربات به سایت متصل شود.</li>
+              <li>در ربات، دستور /start ارسال کنید؛ پیام خوش‌آمدگویی باید دریافت شود.</li>
+              <li>برای Mini App، در ربات دکمه‌ای با آدرس <code dir="ltr" className="rounded bg-white/10 px-1">/miniapp?platform=telegram</code> یا <code dir="ltr" className="rounded bg-white/10 px-1">/miniapp?platform=bale</code> تنظیم کنید.</li>
+            </ol>
+          </GlassCard>
+        </motion.div>}
+
+        {/* ===== CMS ===== */}
+        {tab === "cms" && <motion.div key="cms" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-extrabold text-[var(--ink)]">مدیریت محتوا</h2>
+            <p className="text-xs text-[var(--ink-dim)]">فقط مدیر کل می‌تواند محتوا را تغییر دهد</p>
+          </div>
+          <CMSAdminPanel />
+        </motion.div>}
+
         {/* ===== SETTINGS ===== */}
         {tab === "settings" && <motion.div key="st" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
           <GlassCard className="p-6 space-y-4">
@@ -359,6 +611,28 @@ export default function AdminPage() {
             <div className="space-y-3">
               {[{ l: "ربات تلگرام", s: "تنظیم نشده" }, { l: "ربات بله", s: "تنظیم نشده" }, { l: "درگاه پرداخت", s: "تنظیم نشده" }, { l: "سامانه پیامکی", s: "تنظیم نشده" }, { l: "Google OAuth", s: "تنظیم نشده" }].map((item, i) => <div key={i} className="flex items-center justify-between rounded-xl bg-white/5 px-4 py-3"><span className="text-sm text-[var(--ink)]">{item.l}</span><span className="rounded-full bg-amber-400/10 px-2.5 py-0.5 text-[10px] text-amber-400">{item.s}</span></div>)}
             </div>
+          </GlassCard>
+
+          <GlassCard className="p-6 space-y-4">
+            <h3 className="font-bold text-[var(--ink)] mb-2">تنظیمات درگاه پرداخت</h3>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--ink-dim)]">درگاه فعال</label>
+              <select value={paymentGateway} onChange={e => setPaymentGateway(e.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60">
+                <option value="test">حالت تست (بدون درگاه واقعی)</option>
+                <option value="zarinpal">زرین‌پال</option>
+                <option value="payping">پی‌پینگ</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--ink-dim)]">مرچنت کد زرین‌پال</label>
+              <input value={zarinpalMerchant} onChange={e => setZarinpalMerchant(e.target.value)} type="password" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" dir="ltr" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60 text-left" />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--ink-dim)]">توکن پی‌پینگ</label>
+              <input value={paypingToken} onChange={e => setPaypingToken(e.target.value)} type="password" placeholder="Bearer Token" dir="ltr" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60 text-left" />
+            </div>
+            <button onClick={savePaymentSettings} className="btn-brand flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold"><Save size={16} /> ذخیره تنظیمات پرداخت</button>
+            {paymentSettingsMsg && <p className={`text-xs ${paymentSettingsMsg.includes("خطا") ? "text-red-400" : "text-emerald-300"}`}>{paymentSettingsMsg}</p>}
           </GlassCard>
         </motion.div>}
       </AnimatePresence>
