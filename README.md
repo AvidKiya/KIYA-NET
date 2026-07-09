@@ -1,129 +1,153 @@
-# کیا نت | Kiya Net
+# 🚀 کیا نت (KIYA NET) — کافی‌نت آنلاین ۳۶۰ درجه
 
-پلتفرم خدمات اینترنتی و کافی‌نت آنلاین | Online Internet Café & Administrative Services
-
----
-
-## ویژگی‌های اصلی
-
-- ثبت سفارش آنلاین خدمات اداری، قضایی، دانشگاهی، مالیاتی، بانکی، خودرویی و گرافیکی
-- پرداخت از طریق کیف پول، درگاه آنلاین (زرین‌پال/پی‌پینگ/تست) یا کارت‌به‌کارت
-- گاوصندوق امن مدارک
-- پیگیری زنده وضعیت سفارش و چت با اپراتور
-- پنل مدیریت کامل با نقش‌های SUPER_ADMIN و OPERATOR
-- سیستم پورسانت خودکار و درخواست برداشت
-- ربات تلگرام و بله با دستورات /start، /orders، /wallet، /support، /miniapp، /help
-- Mini App داخل تلگرام/بله با احراز هویت خودکار
-- اتاق انتظار با اخبار RSS و بازی‌های امتیازی
-- CMS کامل بدون کد و حالت ویرایش زنده (Live Edit)
-- PWA قابل نصب روی iOS/Android/Desktop با پشتیبانی آفلاین
-- طراحی Liquid Glass، RTL فارسی و آیکون‌های Lucide
+**پلتفرم کامل خدمات اداری، قضایی، مالیاتی، دانشگاهی و گرافیکی به صورت آنلاین**
 
 ---
 
-## پیش‌نیازها
+## 📋 فهرست مطالب
 
-- Node.js 18 یا بالاتر
-- حساب GitHub
-- دیتابیس PostgreSQL (توصیه: Neon PostgreSQL برای Cloudflare)
-- حساب Cloudflare (برای deploy نهایی)
+1. [معرفی پروژه](#معرفی-پروژه)
+2. [ویژگی‌های کلیدی](#ویژگیهای-کلیدی)
+3. [راه‌اندازی از طریق داشبورد Cloudflare (توصیه‌شده)](#راهاندازی-از-طریق-داشبورد-کلادفلر)
+4. [Deploy خودکار با یک کلیک](#deploy-خودکار-با-یک-کلیک)
+5. [توسعه محلی](#توسعه-محلی)
+6. [ساختار پروژه](#ساختار-پروژه)
+7. [APIها و Endpoints](#apiها-و-endpoints)
+8. [نکات امنیتی](#نکات-امنیتی)
+9. [پشتیبانی و گزارش باگ](#پشتیبانی-و-گزارش-باگ)
 
 ---
 
-## راه‌اندازی محلی
+## معرفی پروژه
+
+**کیا نت** یک پلتفرم کاملاً ابری و بومی Cloudflare است که تمام خدمات کافی‌نت را به صورت آنلاین و ۲۴ ساعته ارائه می‌دهد.
+
+### تکنولوژی‌های استفاده شده
+- **Next.js 15** + React 19
+- **Cloudflare D1** (SQLite)
+- **Cloudflare R2** (ذخیره فایل)
+- **Cloudflare Pages**
+- **Drizzle ORM**
+- **Tailwind CSS** + طراحی Liquid Glass
+
+---
+
+## ویژگی‌های کلیدی
+
+### ✅ ویژگی‌های Core
+- ثبت سفارش آنلاین خدمات (ثنا، کنکور، مالیات، وام، گرافیک و ...)
+- پرداخت با کیف پول، درگاه آنلاین و کارت‌به‌کارت
+- گاوصندوق امن مدارک (R2)
+- چت زنده با اپراتور
+- ربات تلگرام و بله + Mini App
+- پنل مدیریت کامل (ادمین + اپراتور)
+- CMS زنده بدون کد
+- PWA قابل نصب
+
+### ✅ ویژگی‌های پیشرفته
+- **نوتیفیکیشن Real-time**
+- **داشبورد تحلیلی کامل**
+- **سیستم رتبه‌بندی اپراتورها**
+- **جستجوی پیشرفته + فیلتر**
+- **وبلاگ / پایگاه دانش**
+- **سیستم نظرات و بررسی خدمات**
+- **توصیه هوشمند خدمات**
+- **سیستم وفاداری (Loyalty)**
+- **سیستم ارجاع (Referral)**
+- **احراز هویت دو مرحله‌ای (2FA)**
+- **نرخ محدودسازی (Rate Limiting)**
+- **گزارش‌گیری (PDF/Excel/CSV)**
+- **تیکتینگ پشتیبانی**
+- **چت‌بات هوشمند**
+
+---
+
+## راه‌اندازی از طریق داشبورد Cloudflare (توصیه‌شده)
+
+### مرحله ۱: ایجاد پروژه Pages
+
+1. به [Cloudflare Dashboard](https://dash.cloudflare.com) بروید
+2. بخش **Pages** → **Create a project** → **Connect to Git**
+3. مخزن GitHub خود را انتخاب کنید (`AvidKiya/KIYA-NET`)
+4. تنظیمات Build:
+   - **Build command**: `npm run build`
+   - **Build output directory**: `.vercel/output/static`
+
+### مرحله ۲: ایجاد D1 Database
+
+1. به بخش **D1** بروید
+2. **Create database** را بزنید
+3. نام: `kiya-net-db`
+4. `database_id` را کپی کنید
+
+### مرحله ۳: ایجاد R2 Bucket (اختیاری اما توصیه‌شده)
+
+1. به بخش **R2** بروید
+2. **Create bucket** → نام: `kiya-net-files`
+
+### مرحله ۴: تنظیم متغیرهای محیطی
+
+در بخش **Settings → Environment variables** مقادیر زیر را اضافه کنید:
+
+```
+DATABASE_URL = (از D1)
+JWT_SECRET = یک رشته تصادفی قوی (حداقل ۳۲ کاراکتر)
+SUPER_ADMIN_PASSWORDS = AvidKiya*2397*7370#
+OPERATOR_ADMIN_PASSWORDS = operator123
+```
+
+### مرحله ۵: اتصال D1 و R2 به Pages
+
+در بخش **Settings → Functions → D1 database bindings**:
+- Binding: `DB`
+- Database: `kiya-net-db`
+
+در بخش **R2 bucket bindings**:
+- Binding: `R2`
+- Bucket: `kiya-net-files`
+
+### مرحله ۶: Deploy
+
+دکمه **Save and Deploy** را بزنید.
+
+---
+
+## Deploy خودکار با یک کلیک
+
+ما یک **Worker خودکار** آماده کرده‌ایم که تمام مراحل را انجام می‌دهد.
+
+### نحوه استفاده:
+
+1. فایل `deploy-worker.js` را در [Cloudflare Workers](https://workers.cloudflare.com) Deploy کنید.
+2. آدرس Worker را باز کنید.
+3. توکن API Cloudflare + آدرس گیت‌هاب را وارد کنید.
+4. دکمه Deploy را بزنید.
+
+**همه چیز به صورت خودکار انجام می‌شود:**
+- ایجاد Pages Project
+- ایجاد D1 Database
+- ایجاد R2 Bucket
+- تنظیم Bindings
+
+---
+
+## توسعه محلی
+
+### پیش‌نیازها
+- Node.js 18+
+- Wrangler CLI
+
+### اجرای محلی
 
 ```bash
-# ۱. کلون کردن ریپو
-git clone https://github.com/AvidKiya/KIYA-NET.git
-cd KIYA-NET
-
-# ۲. نصب وابستگی‌ها
+# نصب وابستگی‌ها
 npm install
 
-# ۳. تنظیم متغیرهای محیطی (توسعه محلی)
-cp .env.example .env
-# مقادیر DATABASE_URL, JWT_SECRET, SUPER_ADMIN_PASSWORDS و OPERATOR_ADMIN_PASSWORDS را پر کنید
-# در صورت استفاده از ربات/درگاه واقعی: TOKEN_TELEGRAM, TOKEN_BALE, ZARINPAL_API, PAYMENT_GATEWAY
-
-# ۴. ساخت جداول دیتابیس
-npx drizzle-kit push
-
-# ۵. Seed کردن داده‌های اولیه
-npx tsx src/db/seed.ts
-
-# ۶. همگام‌سازی پیش‌فرض‌های CMS
-npx tsx scripts/sync-cms.ts
-
-# ۷. اجرای محیط توسعه
-npm run dev
+# اجرای محلی با Wrangler
+npx wrangler pages dev .vercel/output/static
 ```
 
-سایت روی `http://localhost:3000` اجرا می‌شود.
-
----
-
-## اطلاعات ورود پیش‌فرض ادمین
-
-| فیلد | مقدار |
-|---|---|
-| آدرس پنل | `/admin` |
-| شماره موبایل | `۰۶۹۰۹۰۱۰۳۸` |
-| رمز پیش‌فرض | `AvidKiya*2397*7370#` |
-| نقش | SUPER_ADMIN |
-
-> ⚠️ در اولین ورود، سیستم شما را مجبور به تغییر رمز پیش‌فرض می‌کند. رمز پیش‌فرض از متغیر محیطی `SUPER_ADMIN_PASSWORDS` خوانده می‌شود. اپراتورها نیز در اولین ورود باید رمز `OPERATOR_ADMIN_PASSWORDS` را تغییر دهند.
-
----
-
-## دستورات مهم
-
-```bash
-npm run dev          # اجرای محیط توسعه
-npm run build        # بیلد Next.js
-npm run typecheck    # بررسی TypeScript
-npm run lint         # اجرای ESLint
-npx drizzle-kit push # اعمال migration
-npx tsx src/db/seed.ts   # seed دیتابیس
-npx tsx scripts/sync-cms.ts  # همگام‌سازی پیش‌فرض‌های CMS
-npx @cloudflare/next-on-pages  # بیلد برای Cloudflare Pages
-```
-
----
-
-## دیپلوی روی Cloudflare Pages
-
-1. ریپو را به GitHub متصل کنید.
-2. در Cloudflare Pages یک پروژه بسازید و به GitHub وصل کنید.
-3. تنظیمات build:
-   - **Build command:** `npx @cloudflare/next-on-pages`
-   - **Build output directory:** `.vercel/output/static`
-4. متغیرهای محیطی را در داشبورد Cloudflare تنظیم کنید:
-   - `DATABASE_URL` — رشته اتصال Neon PostgreSQL
-   - `JWT_SECRET` — کلید امنیتی JWT (حداقل ۳۲ کاراکتر)
-   - `SUPER_ADMIN_PASSWORDS` — رمز پیش‌فرض مدیر کل
-   - `OPERATOR_ADMIN_PASSWORDS` — رمز پیش‌فرض اپراتورها
-   - `TOKEN_TELEGRAM` — توکن ربات تلگرام (در صورت استفاده)
-   - `TOKEN_BALE` — توکن ربات بله (در صورت استفاده)
-   - `ZARINPAL_API` — مرچنت کد زرین‌پال / توکن پی‌پینگ (در صورت استفاده از درگاه واقعی)
-   - `PAYMENT_GATEWAY` — انتخاب درگاه: `zarinpal` | `payping` | `test`
-5. یک‌بار migration و seed را اجرا کنید (راهنمای کامل در `docs/CLOUDFLARE-DEPLOYMENT.md`).
-6. پس از deploy، از `/admin` وارد شوید و تنظیمات ربات/درگاه/CMS را انجام دهید.
-
-راهنمای کامل دیپلوی در [`docs/CLOUDFLARE-DEPLOYMENT.md`](docs/CLOUDFLARE-DEPLOYMENT.md) است.
-
----
-
-## مستندات
-
-| فایل | توضیح |
-|---|---|
-| [`docs/ADMIN-GUIDE.md`](docs/ADMIN-GUIDE.md) | راهنمای کامل پنل مدیریت |
-| [`docs/RAHNAMA.md`](docs/RAHNAMA.md) | راهنمای عمومی استفاده و توسعه |
-| [`docs/TUTORIAL.md`](docs/TUTORIAL.md) | آموزش گام‌به‌گام مدیر، اپراتور، مشتری و PWA |
-| [`docs/CLOUDFLARE-DEPLOYMENT.md`](docs/CLOUDFLARE-DEPLOYMENT.md) | راهنمای دیپلوی روی Cloudflare Pages |
-| [`docs/E2E-TESTING.md`](docs/E2E-TESTING.md) | چک‌لیست و نتایج تست End-to-End |
-| [`docs/AUDIT-AND-FIXES.md`](docs/AUDIT-AND-FIXES.md) | گزارش بازبینی و رفع باگ‌های بحرانی |
-| [`گزارش-کار.md`](گزارش-کار.md) | گزارش فنی و تاریخچه پیشرفت پروژه |
+> **نکته**: برای توسعه محلی از D1 محلی استفاده می‌شود.
 
 ---
 
@@ -132,33 +156,76 @@ npx @cloudflare/next-on-pages  # بیلد برای Cloudflare Pages
 ```
 KIYA-NET/
 ├── src/
-│   ├── app/              # صفحات و API routes
-│   ├── components/       # کامپوننت‌های UI و CMS
-│   ├── db/               # schema، seed و migration
-│   ├── lib/              # توابع کمکی، auth، پرداخت، ربات
-│   └── styles/           # استایل‌های جهانی
-├── public/               # آیکون‌ها، manifest، service worker
-├── scripts/              # اسکریپت‌های کمکی (seed، sync-cms، ریست پسورد)
-├── docs/                 # مستندات
-└── گزارش-کار.md          # گزارش کار فارسی
+│   ├── app/                    # صفحات و API Routes
+│   │   ├── admin/              # پنل مدیریت
+│   │   ├── api/                # تمام APIها
+│   │   └── ...
+│   ├── components/             # کامپوننت‌های UI
+│   ├── db/                     # دیتابیس (Schema + Adapter)
+│   └── lib/                    # توابع کمکی
+├── public/                     # فایل‌های استاتیک
+├── deploy-worker.js            # Deploy خودکار
+├── wrangler.toml               # تنظیمات Cloudflare
+└── README.md
 ```
 
 ---
 
-## نکات امنیتی و عملیاتی
+## APIها و Endpoints
 
-- رمز عبور ادمین با WebCrypto PBKDF2 (فرمت `salt$hash`) هش‌شده و در دیتابیس ذخیره می‌شود.
-- توکن‌های ربات/درگاه در Cloudflare Pages از **Environment Variables** خوانده می‌شوند و اولویت نسبت به `system_settings` دارند.
-- تمام APIهای حساس روی Cloudflare Edge Runtime اجرا می‌شوند.
-- فایل‌های حساس (مدارک و رسیدها) در فضای ابری R2 ذخیره می‌شوند.
+### احراز هویت
+- `POST /api/auth/login`
+- `POST /api/auth/request-otp`
+- `POST /api/auth/verify-otp`
+
+### سفارشات
+- `GET /api/orders`
+- `POST /api/orders`
+- `GET /api/orders/[id]`
+
+### چت زنده
+- `GET /api/chat/messages`
+- `POST /api/chat/messages`
+
+### نوتیفیکیشن
+- `GET /api/notifications`
+- `POST /api/notifications`
+
+### رتبه‌بندی
+- `POST /api/ratings`
+- `GET /api/ratings`
+
+### جستجو
+- `GET /api/search`
+
+### وبلاگ
+- `GET /api/blog`
+- `POST /api/blog`
+
+### وفاداری و ارجاع
+- `GET /api/loyalty`
+- `GET /api/referral`
+
+### گزارش‌گیری
+- `POST /api/reports/export`
 
 ---
 
-## لینک‌ها
+## نکات امنیتی
 
-- مخزن: https://github.com/AvidKiya/KIYA-NET.git
-- پروژه خواهر: https://github.com/AvidKiya/AvidKiya.git
+- تمام رمزها با **PBKDF2** هش می‌شوند
+- **Rate Limiting** روی APIها فعال است
+- **2FA** برای ادمین‌ها پشتیبانی می‌شود
+- فایل‌ها در **R2** با دسترسی محدود ذخیره می‌شوند
+- تمام APIهای حساس از Edge Runtime استفاده می‌کنند
 
 ---
 
-*کیا نت — کافی‌نت آنلاین ۳۶۰ درجه*
+## پشتیبانی و گزارش باگ
+
+- **گیت‌هاب Issues**: https://github.com/AvidKiya/KIYA-NET/issues
+- **تلگرام**: @AvidKiya
+
+---
+
+**کیا نت — کافی‌نت آنلاین که هیچ‌وقت درش بسته نمی‌شه**

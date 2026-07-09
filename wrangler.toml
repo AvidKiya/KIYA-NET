@@ -1,0 +1,32 @@
+name = "kiya-net"
+compatibility_date = "2025-07-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Cloudflare D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "kiya-net-db"
+database_id = ""  # بعد از ایجاد دیتابیس پر می‌شود
+
+# R2 Bucket for file storage (optional but recommended)
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "kiya-net-files"
+
+# Environment variables
+[vars]
+ENVIRONMENT = "production"
+
+# Build settings for Cloudflare Pages
+[build]
+command = "npm run build"
+cwd = "."
+watch_dir = "src"
+
+[build.upload]
+format = "modules"
+main = ".vercel/output/static/_worker.js"
+
+# Edge Runtime
+[edge]
+compatibility_date = "2025-07-01"

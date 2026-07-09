@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { DynamicIcon } from "@/components/DynamicIcon";
 import { useCMS } from "@/components/cms/CMSContext";
 import { Editable } from "@/components/cms/Editable";
+import { NotificationBell } from "@/components/NotificationBell";
 
 export function SiteHeader() {
   const pathname = usePathname();
@@ -144,6 +145,9 @@ export function SiteHeader() {
               </div>
             )}
           </div>
+
+          {/* Notification Bell */}
+          {user && <NotificationBell />}
 
           {/* User / Login */}
           {user ? (

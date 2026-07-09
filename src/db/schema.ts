@@ -557,3 +557,157 @@ export type GameConfigItem = typeof gameConfig.$inferSelect;
 export type NewsFeed = typeof newsFeeds.$inferSelect;
 export type PredefinedAdmin = typeof predefinedAdmins.$inferSelect;
 export type ContentEditLog = typeof contentEditLogs.$inferSelect;
+export type OperatorRating = typeof operatorRatings.$inferSelect;
+export type NewOperatorRating = typeof operatorRatings.$inferInsert;
+export type NotificationPreference = typeof notificationPreferences.$inferSelect;
+
+// ======================== BLOG / REVIEWS / AUDIT ========================
+export const blogPosts = pgTable("blog_posts", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  slug: text("slug").unique().notNull(),
+  content: text("content").notNull(),
+  excerpt: text("excerpt"),
+  coverImage: text("cover_image"),
+  category: text("category").default("عمومی"),
+  tags: jsonb("tags").$type<string[]>(),
+  isPublished: boolean("is_published").default(false).notNull(),
+  publishedAt: timestamp("published_at"),
+  authorId: text("author_id").references(() => users.id),
+  viewCount: integer("view_count").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const serviceReviews = pgTable("service_reviews", {
+  id: text("id").primaryKey(),
+  serviceId: integer("service_id").references(() => services.id, { onDelete: "cascade" }).notNull(),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  rating: integer("rating").notNull(),
+  comment: text("comment"),
+  isVerified: boolean("is_verified").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const auditLogs = pgTable("audit_logs", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => users.id),
+  action: text("action").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id"),
+  oldValue: jsonb("old_value"),
+  newValue: jsonb("new_value"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const userRecommendations = pgTable("user_recommendations", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  serviceId: integer("service_id").references(() => services.id).notNull(),
+  score: decimal("score", { precision: 5, scale: 2 }).notNull(),
+  reason: text("reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ======================== LOYALTY POINTS ========================
+export const loyaltyPoints = pgTable("loyalty_points", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  points: integer("points").default(0).notNull(),
+  totalEarned: integer("total_earned").default(0).notNull(),
+  level: text("level").default("Bronze").notNull(), // Bronze, Silver, Gold, Platinum
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const loyaltyTransactions = pgTable("loyalty_transactions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  points: integer("points").notNull(),
+  type: text("type").notNull(), // EARN, REDEEM, BONUS
+  description: text("description"),
+  orderId: text("order_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ======================== REFERRAL SYSTEM ========================
+export const referrals = pgTable("referrals", {
+  id: text("id").primaryKey(),
+  referrerId: text("referrer_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  referredId: text("referred_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  status: text("status").default("PENDING").notNull(), // PENDING, COMPLETED, PAID
+  bonusPoints: integer("bonus_points").default(100).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ======================== 2FA ========================
+export const twoFactorAuth = pgTable("two_factor_auth", {
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).primaryKey(),
+  secret: text("secret").notNull(),
+  enabled: boolean("enabled").default(false).notNull(),
+  backupCodes: jsonb("backup_codes").$type<string[]>(),
+  lastUsedAt: timestamp("last_used_at"),
+});
+
+// ======================== REPORTS ========================
+export const reportExports = pgTable("report_exports", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => users.id),
+  type: text("type").notNull(), // ORDERS, REVENUE, USERS
+  format: text("format").notNull(), // PDF, EXCEL, CSV
+  fileUrl: text("file_url"),
+  status: text("status").default("PENDING").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type BlogPost = typeof blogPosts.$inferSelect;
+export type ServiceReview = typeof serviceReviews.$inferSelect;
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type UserRecommendation = typeof userRecommendations.$inferSelect;
+export type LoyaltyPoint = typeof loyaltyPoints.$inferSelect;
+export type LoyaltyTransaction = typeof loyaltyTransactions.$inferSelect;
+export type Referral = typeof referrals.$inferSelect;
+export type TwoFactorAuth = typeof twoFactorAuth.$inferSelect;
+
+// ======================== OPERATOR RATINGS ========================
+export const operatorRatings = pgTable(
+  \"operator_ratings\",
+  {
+    id: text(\"id\").primaryKey(),
+    orderId: text(\"order_id\")
+      .references(() => orders.id, { onDelete: \"cascade\" })
+      .notNull(),
+    userId: text(\"user_id\")
+      .references(() => users.id, { onDelete: \"cascade\" })
+      .notNull(),
+    operatorId: text(\"operator_id\")
+      .references(() => users.id, { onDelete: \"cascade\" })
+      .notNull(),
+    rating: integer(\"rating\").notNull(), // 1-5
+    comment: text(\"comment\"),
+    createdAt: timestamp(\"created_at\").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex(\"order_rating_unique\").on(table.orderId),
+    index(\"operator_rating_idx\").on(table.operatorId),
+  ]
+);
+
+// ======================== NOTIFICATION PREFERENCES ========================
+export const notificationPreferences = pgTable(\"notification_preferences\", {
+  userId: text(\"user_id\")
+    .references(() => users.id, { onDelete: \"cascade\" })
+    .primaryKey(),
+  emailEnabled: boolean(\"email_enabled\").default(true).notNull(),
+  smsEnabled: boolean(\"sms_enabled\").default(false).notNull(),
+  pushEnabled: boolean(\"push_enabled\").default(true).notNull(),
+  orderUpdates: boolean(\"order_updates\").default(true).notNull(),
+  paymentUpdates: boolean(\"payment_updates\").default(true).notNull(),
+  chatMessages: boolean(\"chat_messages\").default(true).notNull(),
+  updatedAt: timestamp(\"updated_at\").defaultNow().notNull(),
+});
+
+export type OperatorRating = typeof operatorRatings.$inferSelect;
+export type NewOperatorRating = typeof operatorRatings.$inferInsert;
+export type NotificationPreference = typeof notificationPreferences.$inferSelect;

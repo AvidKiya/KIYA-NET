@@ -11,6 +11,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { BottomNav } from "@/components/BottomNav";
 import { SearchableCounters } from "@/components/SearchableCounters";
+import { SmartRecommendations } from "@/components/SmartRecommendations";
 import { useCMS } from "@/components/cms/CMSContext";
 import { Editable } from "@/components/cms/Editable";
 
@@ -192,6 +193,9 @@ export default function HomePage() {
           <h2 className="mt-2 text-2xl font-extrabold text-[var(--ink)] sm:text-3xl">هر سوالی که ممکنه داشته باشید</h2>
           <div className="mx-auto mt-8 max-w-2xl"><FaqAccordion items={Array.isArray(s.faq_items) ? s.faq_items : undefined} /></div>
         </section>
+
+        {/* Smart Recommendations */}
+        <SmartRecommendations />
       </div>
       <SiteFooter />
       <BottomNav />

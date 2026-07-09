@@ -7,6 +7,7 @@ import { CMSProvider } from "@/components/cms/CMSContext";
 import { LiveEditToggle } from "@/components/cms/LiveEditToggle";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { InstallPrompt } from "@/components/InstallPrompt";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const vazirmatn = Vazirmatn({ subsets: ["arabic", "latin"], weight: ["400", "500", "700"], variable: "--font-vazir", display: "swap" });
 
@@ -43,7 +44,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <CMSProvider>
           <BackgroundScene />
           <div className="grain" />
-          <div className="relative flex min-h-dvh flex-col">{children}</div>
+          <div className="relative flex min-h-dvh flex-col">
+            <ErrorBoundary>
+              {children}
+            </ErrorBoundary>
+          </div>
           <LiveEditToggle />
           <ServiceWorkerRegister />
           <InstallPrompt />

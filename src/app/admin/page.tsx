@@ -12,6 +12,9 @@ import { GlassCard } from "@/components/GlassCard";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { CMSAdminPanel } from "@/components/cms/CMSAdminPanel";
+import { AdminAnalytics } from "@/components/AdminAnalytics";
+import { ReportExporter } from "@/components/ReportExporter";
+import { TwoFactorSetup } from "@/components/TwoFactorSetup";
 
 const SM: Record<string,{label:string;icon:any;color:string;bg:string}> = {
   PENDING_ASSIGNMENT:{label:"در انتظار",icon:Clock,color:"text-amber-400",bg:"bg-amber-400/10 border-amber-400/20"},
@@ -679,6 +682,7 @@ export default function AdminPage() {
 
   const allTabs = [
     { k: "dashboard", l: "داشبورد", i: LayoutDashboard },
+    { k: "analytics", l: "تحلیل و آمار", i: LayoutDashboard },
     { k: "orders", l: "سفارش‌ها", i: ListOrdered },
     { k: "services", l: "نرخنامه", i: BadgePercent },
     { k: "operators", l: "اپراتورها", i: Users },
