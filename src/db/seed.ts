@@ -15,11 +15,9 @@ import {
   predefinedAdmins,
 } from "@/db/schema";
 import { v4 as uuidv4 } from "uuid";
-import { hashPassword } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 
 const DEFAULT_ADMIN_PHONE = "0690901038";
-const DEFAULT_ADMIN_PASSWORD = "AvidKiya*2397*7370#";
 
 async function seed() {
   console.log("🌱 Seeding Kiya Net database...");
@@ -33,7 +31,8 @@ async function seed() {
 
   // ==================== SUPER ADMIN USER ====================
   const adminId = uuidv4();
-  const passwordHash = await hashPassword(DEFAULT_ADMIN_PASSWORD);
+  // password_hash is intentionally null so the env-based SUPER_ADMIN_PASSWORDS is used
+  // and the user is forced to change it on first login.
   await db.insert(users).values({
     id: adminId,
     phoneNumber: DEFAULT_ADMIN_PHONE,
@@ -41,9 +40,10 @@ async function seed() {
     lastName: "کل",
     role: "SUPER_ADMIN",
     walletBalance: "0",
-    passwordHash,
+    passwordHash: null,
     mustChangePassword: true,
     commissionRate: "0",
+    permissions: {},
     isActive: true,
   });
   console.log("👤 Super admin created:", DEFAULT_ADMIN_PHONE);

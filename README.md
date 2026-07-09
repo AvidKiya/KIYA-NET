@@ -42,7 +42,8 @@ npm install
 
 # ۳. تنظیم متغیرهای محیطی (توسعه محلی)
 cp .env.example .env
-# مقادیر DATABASE_URL و JWT_SECRET را در .env پر کنید
+# مقادیر DATABASE_URL, JWT_SECRET, SUPER_ADMIN_PASSWORDS و OPERATOR_ADMIN_PASSWORDS را پر کنید
+# در صورت استفاده از ربات/درگاه واقعی: TOKEN_TELEGRAM, TOKEN_BALE, ZARINPAL_API, PAYMENT_GATEWAY
 
 # ۴. ساخت جداول دیتابیس
 npx drizzle-kit push
@@ -70,7 +71,7 @@ npm run dev
 | رمز پیش‌فرض | `AvidKiya*2397*7370#` |
 | نقش | SUPER_ADMIN |
 
-> ⚠️ در اولین ورود، سیستم شما را مجبور به تغییر رمز پیش‌فرض می‌کند.
+> ⚠️ در اولین ورود، سیستم شما را مجبور به تغییر رمز پیش‌فرض می‌کند. رمز پیش‌فرض از متغیر محیطی `SUPER_ADMIN_PASSWORDS` خوانده می‌شود. اپراتورها نیز در اولین ورود باید رمز `OPERATOR_ADMIN_PASSWORDS` را تغییر دهند.
 
 ---
 
@@ -99,6 +100,12 @@ npx @cloudflare/next-on-pages  # بیلد برای Cloudflare Pages
 4. متغیرهای محیطی را در داشبورد Cloudflare تنظیم کنید:
    - `DATABASE_URL` — رشته اتصال Neon PostgreSQL
    - `JWT_SECRET` — کلید امنیتی JWT (حداقل ۳۲ کاراکتر)
+   - `SUPER_ADMIN_PASSWORDS` — رمز پیش‌فرض مدیر کل
+   - `OPERATOR_ADMIN_PASSWORDS` — رمز پیش‌فرض اپراتورها
+   - `TOKEN_TELEGRAM` — توکن ربات تلگرام (در صورت استفاده)
+   - `TOKEN_BALE` — توکن ربات بله (در صورت استفاده)
+   - `ZARINPAL_API` — مرچنت کد زرین‌پال / توکن پی‌پینگ (در صورت استفاده از درگاه واقعی)
+   - `PAYMENT_GATEWAY` — انتخاب درگاه: `zarinpal` | `payping` | `test`
 5. یک‌بار migration و seed را اجرا کنید (راهنمای کامل در `docs/CLOUDFLARE-DEPLOYMENT.md`).
 6. پس از deploy، از `/admin` وارد شوید و تنظیمات ربات/درگاه/CMS را انجام دهید.
 
@@ -140,8 +147,8 @@ KIYA-NET/
 
 ## نکات امنیتی و عملیاتی
 
-- رمز عبور ادمین با bcryptjs هش‌شده و در دیتابیس ذخیره می‌شود.
-- توکن‌های ربات/درگاه در production در `system_settings` دیتابیس نگهداری می‌شوند، نه در `.env`.
+- رمز عبور ادمین با WebCrypto PBKDF2 (فرمت `salt$hash`) هش‌شده و در دیتابیس ذخیره می‌شود.
+- توکن‌های ربات/درگاه در Cloudflare Pages از **Environment Variables** خوانده می‌شوند و اولویت نسبت به `system_settings` دارند.
 - تمام APIهای حساس روی Cloudflare Edge Runtime اجرا می‌شوند.
 - فایل‌های حساس (مدارک و رسیدها) در فضای ابری R2 ذخیره می‌شوند.
 

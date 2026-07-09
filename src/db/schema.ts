@@ -134,6 +134,7 @@ export const users = pgTable(
     baleChatId: text("bale_chat_id"),
     role: userRoleEnum("role").default("CUSTOMER").notNull(),
     assignedModules: jsonb("assigned_modules").$type<string[]>(),
+    permissions: jsonb("permissions").$type<Record<string, any>>(),
     commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }),
     passwordHash: text("password_hash"),
     mustChangePassword: boolean("must_change_password").default(false).notNull(),

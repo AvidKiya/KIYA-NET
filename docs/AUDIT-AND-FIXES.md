@@ -107,10 +107,40 @@
 
 ---
 
+## ۵. پیکربندی کامل از Environment Variables (Cloudflare)
+
+### ۵.۱. هدف
+طبق درخواست کاربر، کل پیکربندی حساس (توکن‌ها، رمزها، درگاه) باید از متغیرهای محیطی Cloudflare خوانده شود و هیچ‌گونه تنظیم دستی در `.env` یا `system_settings` برای راه‌اندازی اولیه لازم نباشد.
+
+### ۵.۲. تغییرات اعمال‌شده
+| فایل | تغییر |
+|---|---|
+| `src/db/seed.ts` | `passwordHash` ادمین/اپراتورها به `null` تنظیم شد تا از `SUPER_ADMIN_PASSWORDS` / `OPERATOR_ADMIN_PASSWORDS` استفاده شود. |
+| `src/app/api/auth/admin-login/route.ts` | در صورت `passwordHash=null`، رمز از env خوانده و `needsPasswordChange=true` برمی‌گرداند. |
+| `src/app/api/auth/admin-change-password/route.ts` | رمز فعلی پیش‌فرض env به‌عنوان رمز فعلی پذیرفته می‌شود. |
+| `src/app/api/admin/operators/route.ts` | اپراتورها با `passwordHash=null` و `mustChangePassword=true` ساخته می‌شوند. |
+| `src/lib/bot/engine.ts` | `getBotToken` ابتدا `TOKEN_TELEGRAM` / `TOKEN_BALE` env را می‌خواند. |
+| `src/lib/payment/gateway.ts` | `getActiveGateway` و `getGatewayConfig` ابتدا `PAYMENT_GATEWAY` و `ZARINPAL_API` env را می‌خوانند. |
+| `src/app/admin/page.tsx` | گیت‌گذاری UI بر اساس مجوزهای دانه‌ای (RBAC) برای تب‌های رسیدها، ربات‌ها، اخبار، بازی‌ها، CMS و تنظیمات. |
+| `.env.example` | به‌روزرسانی با نام‌های جدید env: `SUPER_ADMIN_PASSWORDS`, `OPERATOR_ADMIN_PASSWORDS`, `TOKEN_TELEGRAM`, `TOKEN_BALE`, `ZARINPAL_API`, `PAYMENT_GATEWAY`. |
+| `docs/CLOUDFLARE-DEPLOYMENT.md` | به‌روزرسانی راهنمای env bindings و چک‌لیست. |
+| `docs/ADMIN-GUIDE.md` | اضافه‌شدن بخش RBAC و نحوهٔ ورود env-based. |
+| `README.md` | به‌روزرسانی راه‌اندازی محلی و Cloudflare. |
+
+### ۵.۳. مجوزهای دانه‌ای (RBAC) در پنل ادمین
+- هر اپراتور دارای آبجکت `permissions` در جدول `users` است.
+- SUPER_ADMIN همهٔ مجوزها را دارد.
+- مجوزها شامل دسته‌های: `orders`, `services`, `receipts`, `withdrawals`, `payments`, `bots`, `news`, `games`, `cms`, `settings`, `operators` هستند.
+- هر دسته دارای `view` و `manage` (و در موارد خاص `approve`/`reject`/`assign`/`changeStatus`/`edit`/`withdraw`) است.
+- دکمه‌های مدیریتی در `admin/page.tsx` فقط در صورت داشتن مجوز مربوط نمایش داده می‌شوند.
+
+---
+
 ## ۶. نتیجه‌گیری
 
 - باگ‌های بحرانی پنل مدیریت که باعث ناکارآمدی آن می‌شدند، رفع شدند.
 - مدیریت اپراتور، درخواست برداشت، قیمت‌گذاری خدمات، اخبار RSS و تنظیمات بازی‌ها اکنون عملیاتی هستند.
+- پیکربندی کامل از env variables (Cloudflare) پیاده‌سازی شد و RBAC دانه‌ای در پنل اعمال گردید.
 - بیلد و دیپلوی Cloudflare Pages بدون خطا انجام می‌شود.
 - سایر موارد بهبود در فهرست «Future Improvements» برای نسخه‌های بعدی ثبت شدند.
 

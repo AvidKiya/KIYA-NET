@@ -41,20 +41,32 @@ export interface PaymentVerifyResult {
 }
 
 export async function getActiveGateway(): Promise<PaymentGateway> {
+  // Env takes precedence, then DB, then test mode.
+  const envGateway = process.env.PAYMENT_GATEWAY;
+  if (envGateway === "zarinpal" || envGateway === "payping" || envGateway === "test") {
+    return envGateway;
+  }
   const row = await db
     .select({ value: systemSettings.value })
     .from(systemSettings)
     .where(eq(systemSettings.key, "PAYMENT_GATEWAY"))
     .limit(1)
     .then((r) => r[0]);
-  const value = row?.value || "zarinpal";
+  const value = row?.value || "test";
   if (value === "payping") return "payping";
   if (value === "test") return "test";
   return "zarinpal";
 }
 
 export async function getGatewayConfig(gateway: PaymentGateway) {
-  const keys: Record<string, string> = {
+  const envKeys: Record<string, string> = {
+    zarinpal: "ZARINPAL_API",
+    payping: "PAYPING_TOKEN",
+  };
+  const envValue = envKeys[gateway] ? process.env[envKeys[gateway]] : undefined;
+  if (envValue) return envValue;
+
+  const dbKeys: Record<string, string> = {
     zarinpal: "ZARRINPAL_MERCHANT",
     payping: "PAYPING_TOKEN",
     test: "PAYMENT_GATEWAY",
@@ -62,7 +74,7 @@ export async function getGatewayConfig(gateway: PaymentGateway) {
   const value = await db
     .select({ value: systemSettings.value })
     .from(systemSettings)
-    .where(eq(systemSettings.key, keys[gateway] || "ZARRINPAL_MERCHANT"))
+    .where(eq(systemSettings.key, dbKeys[gateway] || "ZARRINPAL_MERCHANT"))
     .limit(1)
     .then((r) => r[0]?.value);
   return value;

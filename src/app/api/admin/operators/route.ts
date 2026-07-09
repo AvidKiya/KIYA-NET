@@ -4,9 +4,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
-import { getCurrentUser, hashPassword } from "@/lib/auth";
-
-const DEFAULT_OPERATOR_PASSWORD = "AvidKiya*2397*7370#";
+import { getCurrentUser } from "@/lib/auth";
 
 export async function GET() {
   try {
@@ -37,7 +35,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { phoneNumber, modules, commission } = await req.json();
+    const { phoneNumber, modules, commission, permissions } = await req.json();
 
     // Validate Iranian mobile number (starts with 09 or 06, 11 digits total)
     if (!phoneNumber || !/^0\d{10}$/.test(phoneNumber)) {
@@ -69,6 +67,7 @@ export async function POST(req: NextRequest) {
         .set({
           role: "OPERATOR",
           assignedModules: modules || [],
+          permissions: permissions || {},
           commissionRate,
           updatedAt: new Date(),
         })
@@ -82,16 +81,16 @@ export async function POST(req: NextRequest) {
     }
 
     const id = uuid();
-    const passwordHash = await hashPassword(DEFAULT_OPERATOR_PASSWORD);
-
+    // passwordHash is null so the env-based OPERATOR_ADMIN_PASSWORDS is used on first login.
     await db.insert(users).values({
       id,
       phoneNumber,
       role: "OPERATOR",
       assignedModules: modules || [],
+      permissions: permissions || {},
       commissionRate,
       walletBalance: "0",
-      passwordHash,
+      passwordHash: null,
       mustChangePassword: true,
       referralCode: "KIYA" + Math.random().toString(36).substring(2, 8).toUpperCase(),
       isActive: true,

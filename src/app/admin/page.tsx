@@ -32,6 +32,149 @@ const ALL_MODULES = [
   { id: "INSURANCE", label: "تامین اجتماعی" },
 ];
 
+const PERMISSION_CATEGORIES = [
+  {
+    key: "orders",
+    label: "سفارش‌ها",
+    items: [
+      { key: "view", label: "مشاهده سفارشات" },
+      { key: "assign", label: "قبول/تخصیص سفارش" },
+      { key: "changeStatus", label: "تغییر وضعیت سفارش" },
+    ],
+  },
+  {
+    key: "services",
+    label: "نرخنامه",
+    items: [
+      { key: "view", label: "مشاهده خدمات" },
+      { key: "edit", label: "ویرایش قیمت/تخفیف" },
+    ],
+  },
+  {
+    key: "receipts",
+    label: "رسیدها",
+    items: [
+      { key: "view", label: "مشاهده رسیدها" },
+      { key: "approve", label: "تأیید رسید" },
+      { key: "reject", label: "رد رسید" },
+    ],
+  },
+  {
+    key: "withdrawals",
+    label: "برداشت‌ها",
+    items: [
+      { key: "view", label: "مشاهده درخواست‌ها" },
+      { key: "approve", label: "تأیید برداشت" },
+      { key: "reject", label: "رد برداشت" },
+    ],
+  },
+  {
+    key: "payments",
+    label: "مالی",
+    items: [
+      { key: "withdraw", label: "درخواست برداشت (اپراتور)" },
+      { key: "manage", label: "مدیریت مالی (مدیر)" },
+    ],
+  },
+  {
+    key: "bots",
+    label: "ربات‌ها",
+    items: [
+      { key: "view", label: "مشاهده" },
+      { key: "manage", label: "تنظیم/تست وب‌هوک" },
+    ],
+  },
+  {
+    key: "news",
+    label: "اخبار",
+    items: [
+      { key: "view", label: "مشاهده" },
+      { key: "manage", label: "مدیریت منابع RSS" },
+    ],
+  },
+  {
+    key: "games",
+    label: "بازی‌ها",
+    items: [
+      { key: "view", label: "مشاهده" },
+      { key: "manage", label: "مدیریت تنظیمات" },
+    ],
+  },
+  {
+    key: "cms",
+    label: "مدیریت محتوا",
+    items: [
+      { key: "view", label: "مشاهده" },
+      { key: "manage", label: "ویرایش محتوا" },
+    ],
+  },
+  {
+    key: "settings",
+    label: "تنظیمات",
+    items: [
+      { key: "view", label: "مشاهده" },
+      { key: "manage", label: "مدیریت درگاه/کارت" },
+    ],
+  },
+  {
+    key: "operators",
+    label: "اپراتورها",
+    items: [
+      { key: "view", label: "مشاهده" },
+      { key: "manage", label: "افزودن/ویرایش/حذف" },
+    ],
+  },
+];
+
+const getFullPermissions = () => {
+  const perms: Record<string, any> = {};
+  for (const cat of PERMISSION_CATEGORIES) {
+    perms[cat.key] = {};
+    for (const item of cat.items) {
+      perms[cat.key][item.key] = true;
+    }
+  }
+  return perms;
+};
+
+const getDefaultOperatorPermissions = () => {
+  const perms: Record<string, any> = {};
+  for (const cat of PERMISSION_CATEGORIES) {
+    perms[cat.key] = {};
+    for (const item of cat.items) {
+      perms[cat.key][item.key] = false;
+    }
+  }
+  // Default operator can only view/assign/change status orders and request withdrawal
+  perms.orders = { view: true, assign: true, changeStatus: true };
+  perms.payments = { withdraw: true, manage: false };
+  return perms;
+};
+
+const checkPerm = (permissions: Record<string, any> | null | undefined, category: string, action: string) => {
+  if (!permissions) return false;
+  return permissions[category]?.[action] === true;
+};
+
+const canAccessTab = (user: any, tab: string) => {
+  if (user?.role === "SUPER_ADMIN") return true;
+  const perms = user?.permissions || {};
+  switch (tab) {
+    case "dashboard": return true;
+    case "orders": return checkPerm(perms, "orders", "view");
+    case "services": return checkPerm(perms, "services", "view");
+    case "operators": return checkPerm(perms, "operators", "view");
+    case "payments": return checkPerm(perms, "payments", "withdraw") || checkPerm(perms, "payments", "manage") || checkPerm(perms, "withdrawals", "view") || checkPerm(perms, "receipts", "view");
+    case "receipts": return checkPerm(perms, "receipts", "view");
+    case "bots": return checkPerm(perms, "bots", "view");
+    case "news": return checkPerm(perms, "news", "view");
+    case "games": return checkPerm(perms, "games", "view");
+    case "cms": return checkPerm(perms, "cms", "view");
+    case "settings": return checkPerm(perms, "settings", "view");
+    default: return false;
+  }
+};
+
 export default function AdminPage() {
   const r = useRouter();
   // Auth state
@@ -63,6 +206,7 @@ export default function AdminPage() {
   const [newOpPhone, setNewOpPhone] = useState("");
   const [newOpModules, setNewOpModules] = useState<string[]>([]);
   const [newOpCommission, setNewOpCommission] = useState("10");
+  const [newOpPermissions, setNewOpPermissions] = useState<Record<string, any>>(getDefaultOperatorPermissions());
   const [showAddOp, setShowAddOp] = useState(false);
   const [editingOpId, setEditingOpId] = useState<string | null>(null);
   const [opActionMsg, setOpActionMsg] = useState<string | null>(null);
@@ -118,6 +262,7 @@ export default function AdminPage() {
 
   const fmt = (p: string) => Number(p || 0).toLocaleString("fa-IR");
   const fd = (d: string) => new Date(d).toLocaleDateString("fa-IR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  const hasPerm = (category: string, action: string) => user?.role === "SUPER_ADMIN" || checkPerm(user?.permissions, category, action);
 
   // Check if already logged in via session
   useEffect(() => {
@@ -203,10 +348,10 @@ export default function AdminPage() {
   const addOperator = async () => {
     if (!newOpPhone) return;
     try {
-      const res = await fetch("/api/admin/operators", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phoneNumber: newOpPhone, modules: newOpModules, commission: Number(newOpCommission) }) });
+      const res = await fetch("/api/admin/operators", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phoneNumber: newOpPhone, modules: newOpModules, commission: Number(newOpCommission), permissions: newOpPermissions }) });
       const d = await res.json();
       setOpActionMsg(d.success ? (editingOpId ? "اپراتور بروزرسانی شد" : "اپراتور افزوده شد") : d.error || "خطا");
-      setShowAddOp(false); setNewOpPhone(""); setNewOpModules([]); setNewOpCommission("10"); setEditingOpId(null);
+      setShowAddOp(false); setNewOpPhone(""); setNewOpModules([]); setNewOpCommission("10"); setNewOpPermissions(getDefaultOperatorPermissions()); setEditingOpId(null);
       loadData();
       setTimeout(() => setOpActionMsg(null), 3000);
     } catch {
@@ -219,6 +364,7 @@ export default function AdminPage() {
     setNewOpPhone(op.phoneNumber || "");
     setNewOpModules(Array.isArray(op.assignedModules) ? op.assignedModules : []);
     setNewOpCommission(String(op.commissionRate || "10"));
+    setNewOpPermissions(op.permissions && Object.keys(op.permissions).length > 0 ? op.permissions : getDefaultOperatorPermissions());
     setShowAddOp(true);
   };
 
@@ -227,7 +373,18 @@ export default function AdminPage() {
     setNewOpPhone("");
     setNewOpModules([]);
     setNewOpCommission("10");
+    setNewOpPermissions(getDefaultOperatorPermissions());
     setShowAddOp(false);
+  };
+
+  const togglePermission = (category: string, key: string) => {
+    setNewOpPermissions(prev => ({
+      ...prev,
+      [category]: {
+        ...prev[category],
+        [key]: !prev[category]?.[key],
+      },
+    }));
   };
 
   const deleteOperator = async (op: any) => {
@@ -520,7 +677,7 @@ export default function AdminPage() {
   const rev = orders.reduce((s, o) => s + Number(o.totalAmount || 0), 0);
   const filtered = filter === "all" ? orders : orders.filter(o => o.status === filter);
 
-  const tabs = [
+  const allTabs = [
     { k: "dashboard", l: "داشبورد", i: LayoutDashboard },
     { k: "orders", l: "سفارش‌ها", i: ListOrdered },
     { k: "services", l: "نرخنامه", i: BadgePercent },
@@ -533,6 +690,15 @@ export default function AdminPage() {
     { k: "cms", l: "مدیریت محتوا", i: Edit3 },
     { k: "settings", l: "تنظیمات", i: Settings },
   ];
+
+  const tabs = allTabs.filter(t => canAccessTab(user, t.k));
+
+  // If current tab is not accessible, switch to dashboard
+  useEffect(() => {
+    if (user && !canAccessTab(user, tab)) {
+      setTab("dashboard");
+    }
+  }, [user, tab]);
 
   // AUTH SCREEN
   if (authLoading) return <div className="flex min-h-screen items-center justify-center"><Loader2 size={32} className="animate-spin text-emerald-400" /></div>;
@@ -615,7 +781,7 @@ export default function AdminPage() {
         {/* ===== ORDERS ===== */}
         {tab === "orders" && <motion.div key="o" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
           <div className="flex flex-wrap gap-2">{[{ k: "all", l: "همه" }, { k: "PENDING_ASSIGNMENT", l: "در انتظار" }, { k: "IN_PROGRESS", l: "در حال انجام" }, { k: "NEEDS_INFO", l: "نیازمند اطلاعات" }, { k: "COMPLETED", l: "تکمیل" }, { k: "CANCELLED", l: "لغو" }].map(f => <button key={f.k} onClick={() => setFilter(f.k)} className={`rounded-full px-4 py-2 text-xs font-medium transition-all ${filter === f.k ? "bg-emerald-400/20 text-emerald-300" : "btn-glass text-[var(--ink-dim)]"}`}>{f.l}</button>)}</div>
-          <div className="space-y-3">{filtered.map(o => { const info = SM[o.status] || SM.PENDING_ASSIGNMENT; const I = info.icon; return <GlassCard key={o.id} className="p-5"><div><span className="font-mono text-xs font-bold text-emerald-300">{o.id}</span><span className={`mr-2 rounded-full px-2.5 py-0.5 text-[10px] inline-flex items-center gap-1 ${info.bg} ${info.color}`}><I size={11} />{info.label}</span><h4 className="font-bold text-sm text-[var(--ink)] mt-1">{o.serviceName}</h4><p className="text-[11px] text-[var(--ink-dim)] mt-1">{o.customerPhone} — {fmt(o.totalAmount)} تومان — {fd(o.createdAt)}</p></div>{o.userNotes && <div className="rounded-xl bg-white/5 p-3 text-xs text-[var(--ink-dim)] mt-3">{o.userNotes}</div>}<div className="flex flex-wrap gap-2 mt-3">{o.status === "PENDING_ASSIGNMENT" && <button onClick={() => assignToMe(o.id)} className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold"><UserCheck size={14} /> قبول</button>}{["UNDER_REVIEW", "NEEDS_INFO"].includes(o.status) && <button onClick={() => changeStatus(o.id, "IN_PROGRESS")} className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold"><Loader2 size={14} /> شروع</button>}{o.status === "IN_PROGRESS" && <button onClick={() => changeStatus(o.id, "COMPLETED")} className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold"><CheckCircle2 size={14} /> تکمیل</button>}{!["COMPLETED", "CANCELLED"].includes(o.status) && <><button onClick={() => changeStatus(o.id, "NEEDS_INFO")} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-medium"><AlertCircle size={14} /> مدارک</button><button onClick={() => changeStatus(o.id, "CANCELLED")} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-medium text-red-300"><XCircle size={14} /> لغو</button></>}</div></GlassCard>; })}</div>
+          <div className="space-y-3">{filtered.map(o => { const info = SM[o.status] || SM.PENDING_ASSIGNMENT; const I = info.icon; const canAssign = user?.role === "SUPER_ADMIN" || checkPerm(user?.permissions, "orders", "assign"); const canChangeStatus = user?.role === "SUPER_ADMIN" || checkPerm(user?.permissions, "orders", "changeStatus"); return <GlassCard key={o.id} className="p-5"><div><span className="font-mono text-xs font-bold text-emerald-300">{o.id}</span><span className={`mr-2 rounded-full px-2.5 py-0.5 text-[10px] inline-flex items-center gap-1 ${info.bg} ${info.color}`}><I size={11} />{info.label}</span><h4 className="font-bold text-sm text-[var(--ink)] mt-1">{o.serviceName}</h4><p className="text-[11px] text-[var(--ink-dim)] mt-1">{o.customerPhone} — {fmt(o.totalAmount)} تومان — {fd(o.createdAt)}</p></div>{o.userNotes && <div className="rounded-xl bg-white/5 p-3 text-xs text-[var(--ink-dim)] mt-3">{o.userNotes}</div>}<div className="flex flex-wrap gap-2 mt-3">{canAssign && o.status === "PENDING_ASSIGNMENT" && <button onClick={() => assignToMe(o.id)} className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold"><UserCheck size={14} /> قبول</button>}{canChangeStatus && ["UNDER_REVIEW", "NEEDS_INFO"].includes(o.status) && <button onClick={() => changeStatus(o.id, "IN_PROGRESS")} className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold"><Loader2 size={14} /> شروع</button>}{canChangeStatus && o.status === "IN_PROGRESS" && <button onClick={() => changeStatus(o.id, "COMPLETED")} className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold"><CheckCircle2 size={14} /> تکمیل</button>}{canChangeStatus && !["COMPLETED", "CANCELLED"].includes(o.status) && <><button onClick={() => changeStatus(o.id, "NEEDS_INFO")} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-medium"><AlertCircle size={14} /> مدارک</button><button onClick={() => changeStatus(o.id, "CANCELLED")} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-medium text-red-300"><XCircle size={14} /> لغو</button></>}</div></GlassCard>; })}</div>
         </motion.div>}
 
         {/* ===== SERVICES ===== */}
@@ -645,7 +811,7 @@ export default function AdminPage() {
                       </div>
                     )}
                   </div>
-                  {editingSvc?.id !== s.id && <button onClick={() => { setEditingSvc(s); setEditDiscount(String(currentDiscount)); }} className="btn-glass rounded-lg p-2 shrink-0"><Edit3 size={14} /></button>}
+                  {editingSvc?.id !== s.id && (user?.role === "SUPER_ADMIN" || checkPerm(user?.permissions, "services", "edit")) && <button onClick={() => { setEditingSvc(s); setEditDiscount(String(currentDiscount)); }} className="btn-glass rounded-lg p-2 shrink-0"><Edit3 size={14} /></button>}
                 </div>
               </GlassCard>;
             })}
@@ -664,13 +830,36 @@ export default function AdminPage() {
             <h3 className="text-sm font-bold text-[var(--ink)]">{editingOpId ? "ویرایش اپراتور" : "افزودن اپراتور جدید"}</h3>
             <input value={newOpPhone} onChange={e => setNewOpPhone(e.target.value)} type="tel" placeholder="شماره موبایل" dir="ltr" disabled={!!editingOpId} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60 text-left disabled:opacity-50" />
             <div>
-              <p className="text-xs text-[var(--ink-dim)] mb-2">دسترسی به پیشخوان‌ها:</p>
+              <p className="text-xs text-[var(--ink-dim)] mb-2">دسترسی به پیشخوان‌ها (دسته‌های خدمت):</p>
               <div className="flex flex-wrap gap-2">{ALL_MODULES.map(m => <button key={m.id} onClick={() => toggleModule(m.id)} className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-all ${newOpModules.includes(m.id) ? "bg-emerald-400/20 text-emerald-300" : "btn-glass text-[var(--ink-dim)]"}`}>{m.label}</button>)}</div>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs text-[var(--ink-dim)]">درصد پورسانت:</span>
               <input value={newOpCommission} onChange={e => setNewOpCommission(e.target.value)} type="number" className="w-20 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-[var(--ink)] outline-none" />
               <span className="text-xs text-[var(--ink-dim)]">٪ از هر سفارش</span>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-[var(--ink)] mb-2">دسترسی‌های دانه‌ای در پنل:</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {PERMISSION_CATEGORIES.map(cat => (
+                  <div key={cat.key} className="rounded-xl bg-[var(--glass-fill-strong)] p-3">
+                    <p className="text-xs font-bold text-emerald-300 mb-2">{cat.label}</p>
+                    <div className="space-y-1.5">
+                      {cat.items.map(item => (
+                        <label key={item.key} className="flex items-center gap-2 text-xs text-[var(--ink-dim)] cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!!newOpPermissions[cat.key]?.[item.key]}
+                            onChange={() => togglePermission(cat.key, item.key)}
+                            className="h-3.5 w-3.5 rounded border-white/10 bg-white/5 text-emerald-400 accent-emerald-400"
+                          />
+                          {item.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="flex gap-2">
               <button onClick={addOperator} className="btn-brand rounded-xl px-5 py-2.5 text-xs font-bold">{editingOpId ? "بروزرسانی اپراتور" : "ذخیره اپراتور"}</button>
@@ -692,10 +881,10 @@ export default function AdminPage() {
                       <span className="text-[var(--ink-dim)]">درآمد: <span className="text-emerald-300 font-bold">{fmt(op.earnings || "0")} تومان</span></span>
                     </div>
                   </div>
-                  <div className="flex gap-1">
+                  {hasPerm("operators", "manage") && <div className="flex gap-1">
                     <button onClick={() => startEditOperator(op)} className="btn-glass rounded-lg p-2" title="ویرایش"><Edit3 size={13} /></button>
                     <button onClick={() => deleteOperator(op)} className="btn-glass rounded-lg p-2 text-red-300" title="حذف"><Trash2 size={13} /></button>
-                  </div>
+                  </div>}
                 </div>
               </GlassCard>)}
           </div>
@@ -704,7 +893,7 @@ export default function AdminPage() {
         {/* ===== PAYMENTS ===== */}
         {tab === "payments" && <motion.div key="pm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
           {withdrawMsg && <p className={`text-xs ${withdrawMsg.includes("خطا") ? "text-red-400" : "text-emerald-300"}`}>{withdrawMsg}</p>}
-          <GlassCard className="p-6">
+          {(user?.role === "SUPER_ADMIN" || checkPerm(user?.permissions, "payments", "withdraw")) && <GlassCard className="p-6">
             <h3 className="text-sm font-bold text-[var(--ink)] mb-4">درخواست برداشت (اپراتورها)</h3>
             <p className="text-xs text-[var(--ink-dim)] mb-4">پرداخت‌ها هر پنج‌شنبه ساعت ۳ تا ۹ شب انجام می‌شود</p>
             <div className="space-y-3">
@@ -712,9 +901,9 @@ export default function AdminPage() {
               <input value={withdrawNote} onChange={e => setWithdrawNote(e.target.value)} placeholder="توضیحات (شماره کارت، بانک...)" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60" />
               <button onClick={submitWithdrawal} className="btn-brand flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold"><Banknote size={16} /> ثبت درخواست برداشت</button>
             </div>
-          </GlassCard>
+          </GlassCard>}
 
-          {user?.role === "SUPER_ADMIN" && <GlassCard className="p-6">
+          {(user?.role === "SUPER_ADMIN" || checkPerm(user?.permissions, "withdrawals", "view")) && <GlassCard className="p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-[var(--ink)]">درخواست‌های برداشت</h3>
               <button onClick={loadWithdrawals} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-medium"><RefreshCcw size={14} /> بروزرسانی</button>
@@ -723,8 +912,10 @@ export default function AdminPage() {
             {withdrawalsLoading ? <div className="py-10 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-emerald-300" /></div> :
               <div className="space-y-3">
                 {withdrawals.filter((w: any) => withdrawFilter === "all" || w.status === withdrawFilter).length === 0 ? <p className="text-center py-10 text-sm text-[var(--ink-dim)]">درخواستی یافت نشد</p> :
-                  withdrawals.filter((w: any) => withdrawFilter === "all" || w.status === withdrawFilter).map((w: any) => (
-                    <div key={w.id} className="rounded-xl bg-[var(--glass-fill-strong)] p-4">
+                  withdrawals.filter((w: any) => withdrawFilter === "all" || w.status === withdrawFilter).map((w: any) => {
+                    const canApprove = user?.role === "SUPER_ADMIN" || checkPerm(user?.permissions, "withdrawals", "approve");
+                    const canReject = user?.role === "SUPER_ADMIN" || checkPerm(user?.permissions, "withdrawals", "reject");
+                    return <div key={w.id} className="rounded-xl bg-[var(--glass-fill-strong)] p-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <p className="text-sm font-bold text-[var(--ink)]">{w.operatorName || ""} <span className="text-[11px] text-[var(--ink-dim)]" dir="ltr">{w.operatorPhone}</span></p>
@@ -734,12 +925,12 @@ export default function AdminPage() {
                           {w.adminNote && <p className="mt-1 text-[11px] text-[var(--ink-dim)]">یادداشت: {w.adminNote}</p>}
                         </div>
                       </div>
-                      {w.status === "PENDING" && (
+                      {w.status === "PENDING" && (canApprove || canReject) && (
                         <div className="mt-4 space-y-2">
                           {withdrawRejectingId === w.id ? (
                             <div className="flex flex-col gap-2 sm:flex-row">
                               <input value={withdrawRejectReason} onChange={e => setWithdrawRejectReason(e.target.value)} placeholder="دلیل رد" className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-[var(--ink)] outline-none" />
-                              <button onClick={() => rejectWithdrawal(w.id)} className="btn-glass rounded-xl px-3 py-2 text-xs text-red-300">تایید رد</button>
+                              {canReject && <button onClick={() => rejectWithdrawal(w.id)} className="btn-glass rounded-xl px-3 py-2 text-xs text-red-300">تایید رد</button>}
                               <button onClick={() => { setWithdrawRejectingId(null); setWithdrawRejectReason(""); }} className="btn-glass rounded-xl px-3 py-2 text-xs">انصراف</button>
                             </div>
                           ) : (
@@ -750,14 +941,14 @@ export default function AdminPage() {
                           )}
                           {withdrawRejectingId !== w.id && (
                             <div className="flex gap-2">
-                              <button onClick={() => approveWithdrawal(w.id)} className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold"><CheckCircle2 size={13} /> تأیید و تسویه</button>
-                              <button onClick={() => setWithdrawRejectingId(w.id)} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2 text-xs text-red-300"><XCircle size={13} /> رد</button>
+                              {canApprove && <button onClick={() => approveWithdrawal(w.id)} className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold"><CheckCircle2 size={13} /> تأیید و تسویه</button>}
+                              {canReject && <button onClick={() => setWithdrawRejectingId(w.id)} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2 text-xs text-red-300"><XCircle size={13} /> رد</button>}
                             </div>
                           )}
                         </div>
                       )}
-                    </div>
-                  ))}
+                    </div>;
+                  })}
               </div>
             }
           </GlassCard>}
@@ -801,16 +992,16 @@ export default function AdminPage() {
                       </div>
                       {r.receiptUrl && <a href={r.receiptUrl} target="_blank" rel="noreferrer" className="btn-glass rounded-lg px-3 py-2 text-xs">مشاهده رسید</a>}
                     </div>
-                    {r.status === "PENDING" && (
+                    {r.status === "PENDING" && (hasPerm("receipts", "approve") || hasPerm("receipts", "reject")) && (
                       <div className="mt-4 flex flex-wrap gap-2">
                         {receiptRejectingId === r.id ? (
                           <div className="flex w-full flex-col gap-2 sm:flex-row">
                             <input value={receiptRejectReason} onChange={e => setReceiptRejectReason(e.target.value)} placeholder="دلیل رد" className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-[var(--ink)] outline-none" />
-                            <button onClick={() => rejectReceipt(r.id)} className="btn-glass rounded-xl px-3 py-2 text-xs text-red-300">تایید رد</button>
+                            {hasPerm("receipts", "reject") && <button onClick={() => rejectReceipt(r.id)} className="btn-glass rounded-xl px-3 py-2 text-xs text-red-300">تایید رد</button>}
                             <button onClick={() => { setReceiptRejectingId(null); setReceiptRejectReason(""); }} className="btn-glass rounded-xl px-3 py-2 text-xs">انصراف</button>
                           </div>
                         ) : (
-                          <><button onClick={() => approveReceipt(r.id)} className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold"><CheckCircle2 size={13} /> تأیید</button><button onClick={() => setReceiptRejectingId(r.id)} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2 text-xs text-red-300"><XCircle size={13} /> رد</button></>
+                          <>{hasPerm("receipts", "approve") && <button onClick={() => approveReceipt(r.id)} className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold"><CheckCircle2 size={13} /> تأیید</button>}{hasPerm("receipts", "reject") && <button onClick={() => setReceiptRejectingId(r.id)} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2 text-xs text-red-300"><XCircle size={13} /> رد</button>}</>
                         )}
                       </div>
                     )}
@@ -834,29 +1025,41 @@ export default function AdminPage() {
             {/* Telegram */}
             <GlassCard className="p-6 space-y-4">
               <div className="flex items-center gap-2"><MessageCircle size={18} className="text-blue-400" /><h3 className="font-bold text-[var(--ink)]">ربات تلگرام</h3></div>
-              <input value={telegramToken} onChange={e => setTelegramToken(e.target.value)} type="password" placeholder="توکن ربات تلگرام (مثلاً 123456:ABC-DEF...)" dir="ltr" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60 text-left" />
-              <div className="flex flex-wrap gap-2">
-                <button onClick={() => saveBotToken("telegram")} className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold"><Save size={14} /> ذخیره توکن</button>
-                <button onClick={() => testBot("telegram")} disabled={botTestLoading.telegram} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-medium"><Loader2 size={14} className={`${botTestLoading.telegram ? "animate-spin" : "hidden"}`} /> تست ربات</button>
-                <button onClick={() => setupWebhook("telegram")} disabled={webhookLoading.telegram || !publicUrl} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-medium"><Send size={14} /> تنظیم Webhook</button>
-              </div>
-              {tokenSaveMsg.telegram && <p className={`text-xs ${tokenSaveMsg.telegram === "ذخیره شد" ? "text-emerald-300" : "text-red-400"}`}>{tokenSaveMsg.telegram}</p>}
-              {botTestResult.telegram && <p className="text-xs text-blue-400">{botTestResult.telegram}</p>}
-              {webhookResult.telegram && <p className="text-xs text-[var(--ink-dim)] break-all">{webhookResult.telegram}</p>}
+              {hasPerm("bots", "manage") ? (
+                <>
+                  <input value={telegramToken} onChange={e => setTelegramToken(e.target.value)} type="password" placeholder="توکن ربات تلگرام (مثلاً 123456:ABC-DEF...)" dir="ltr" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60 text-left" />
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => saveBotToken("telegram")} className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold"><Save size={14} /> ذخیره توکن</button>
+                    <button onClick={() => testBot("telegram")} disabled={botTestLoading.telegram} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-medium"><Loader2 size={14} className={`${botTestLoading.telegram ? "animate-spin" : "hidden"}`} /> تست ربات</button>
+                    <button onClick={() => setupWebhook("telegram")} disabled={webhookLoading.telegram || !publicUrl} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-medium"><Send size={14} /> تنظیم Webhook</button>
+                  </div>
+                  {tokenSaveMsg.telegram && <p className={`text-xs ${tokenSaveMsg.telegram === "ذخیره شد" ? "text-emerald-300" : "text-red-400"}`}>{tokenSaveMsg.telegram}</p>}
+                  {botTestResult.telegram && <p className="text-xs text-blue-400">{botTestResult.telegram}</p>}
+                  {webhookResult.telegram && <p className="text-xs text-[var(--ink-dim)] break-all">{webhookResult.telegram}</p>}
+                </>
+              ) : (
+                <p className="text-xs text-[var(--ink-dim)]">شما فقط مشاهده‌گر ربات‌ها هستید.</p>
+              )}
             </GlassCard>
 
             {/* Bale */}
             <GlassCard className="p-6 space-y-4">
               <div className="flex items-center gap-2"><MessageCircle size={18} className="text-emerald-300" /><h3 className="font-bold text-[var(--ink)]">ربات بله</h3></div>
-              <input value={baleToken} onChange={e => setBaleToken(e.target.value)} type="password" placeholder="توکن ربات بله" dir="ltr" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60 text-left" />
-              <div className="flex flex-wrap gap-2">
-                <button onClick={() => saveBotToken("bale")} className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold"><Save size={14} /> ذخیره توکن</button>
-                <button onClick={() => testBot("bale")} disabled={botTestLoading.bale} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-medium"><Loader2 size={14} className={`${botTestLoading.bale ? "animate-spin" : "hidden"}`} /> تست ربات</button>
-                <button onClick={() => setupWebhook("bale")} disabled={webhookLoading.bale || !publicUrl} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-medium"><Send size={14} /> تنظیم Webhook</button>
-              </div>
-              {tokenSaveMsg.bale && <p className={`text-xs ${tokenSaveMsg.bale === "ذخیره شد" ? "text-emerald-300" : "text-red-400"}`}>{tokenSaveMsg.bale}</p>}
-              {botTestResult.bale && <p className="text-xs text-emerald-300">{botTestResult.bale}</p>}
-              {webhookResult.bale && <p className="text-xs text-[var(--ink-dim)] break-all">{webhookResult.bale}</p>}
+              {hasPerm("bots", "manage") ? (
+                <>
+                  <input value={baleToken} onChange={e => setBaleToken(e.target.value)} type="password" placeholder="توکن ربات بله" dir="ltr" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--ink)] outline-none focus:border-emerald-400/60 text-left" />
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => saveBotToken("bale")} className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold"><Save size={14} /> ذخیره توکن</button>
+                    <button onClick={() => testBot("bale")} disabled={botTestLoading.bale} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-medium"><Loader2 size={14} className={`${botTestLoading.bale ? "animate-spin" : "hidden"}`} /> تست ربات</button>
+                    <button onClick={() => setupWebhook("bale")} disabled={webhookLoading.bale || !publicUrl} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-medium"><Send size={14} /> تنظیم Webhook</button>
+                  </div>
+                  {tokenSaveMsg.bale && <p className={`text-xs ${tokenSaveMsg.bale === "ذخیره شد" ? "text-emerald-300" : "text-red-400"}`}>{tokenSaveMsg.bale}</p>}
+                  {botTestResult.bale && <p className="text-xs text-emerald-300">{botTestResult.bale}</p>}
+                  {webhookResult.bale && <p className="text-xs text-[var(--ink-dim)] break-all">{webhookResult.bale}</p>}
+                </>
+              ) : (
+                <p className="text-xs text-[var(--ink-dim)]">شما فقط مشاهده‌گر ربات‌ها هستید.</p>
+              )}
             </GlassCard>
           </div>
 
@@ -880,7 +1083,7 @@ export default function AdminPage() {
             <button onClick={loadNewsFeeds} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-medium"><RefreshCcw size={14} /> بروزرسانی</button>
           </div>
           {newsMsg && <p className={`text-xs ${newsMsg.includes("خطا") ? "text-red-400" : "text-emerald-300"}`}>{newsMsg}</p>}
-          <GlassCard className="p-5 space-y-3">
+          {hasPerm("news", "manage") && <GlassCard className="p-5 space-y-3">
             <h3 className="text-sm font-bold text-[var(--ink)]">افزودن منبع خبری</h3>
             <div className="grid gap-2 sm:grid-cols-3">
               <input value={newsForm.sourceName} onChange={e => setNewsForm({ ...newsForm, sourceName: e.target.value })} placeholder="نام منبع (مثلاً ایسنا)" className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-[var(--ink)] outline-none" />
@@ -888,19 +1091,19 @@ export default function AdminPage() {
               <input value={newsForm.category} onChange={e => setNewsForm({ ...newsForm, category: e.target.value })} placeholder="دسته‌بندی" className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-[var(--ink)] outline-none" />
             </div>
             <button onClick={addNewsFeed} className="btn-brand flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold"><Plus size={12} /> افزودن منبع</button>
-          </GlassCard>
+          </GlassCard>}
           {newsFeedsLoading ? <div className="py-10 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-emerald-300" /></div> :
             <div className="space-y-3">
               {newsFeeds.length === 0 ? <p className="text-center py-10 text-sm text-[var(--ink-dim)]">منبعی یافت نشد</p> :
                 newsFeeds.map(f => (
                   <GlassCard key={f.id} className="p-4">
-                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-sm font-bold text-[var(--ink)]">{f.sourceName}</p>
                         <p className="text-[11px] text-[var(--ink-dim)]" dir="ltr">{f.rssUrl}</p>
                         <p className="text-[11px] text-emerald-300">{f.category}</p>
                       </div>
-                      <button onClick={() => deleteNewsFeed(f.id)} className="btn-glass rounded-lg p-2 text-red-300"><Trash2 size={13} /></button>
+                      {hasPerm("news", "manage") && <button onClick={() => deleteNewsFeed(f.id)} className="btn-glass rounded-lg p-2 text-red-300"><Trash2 size={13} /></button>}
                     </div>
                   </GlassCard>
                 ))}
@@ -913,14 +1116,14 @@ export default function AdminPage() {
             <button onClick={loadGameConfig} className="btn-glass flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-medium"><RefreshCcw size={14} /> بروزرسانی</button>
           </div>
           {gameMsg && <p className={`text-xs ${gameMsg.includes("خطا") ? "text-red-400" : "text-emerald-300"}`}>{gameMsg}</p>}
-          <GlassCard className="p-5 space-y-3">
+          {hasPerm("games", "manage") && <GlassCard className="p-5 space-y-3">
             <h3 className="text-sm font-bold text-[var(--ink)]">افزودن/ویرایش تنظیم</h3>
             <div className="grid gap-2 sm:grid-cols-3">
               <input value={gameForm.key} onChange={e => setGameForm({ ...gameForm, key: e.target.value })} placeholder="کلید (مثلاً memory_active)" className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-[var(--ink)] outline-none" dir="ltr" />
               <input value={gameForm.value} onChange={e => setGameForm({ ...gameForm, value: e.target.value })} placeholder="مقدار (JSON یا متن)" className="sm:col-span-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-[var(--ink)] outline-none" />
             </div>
             <button onClick={() => { saveGameConfig(gameForm.key, gameForm.value); setGameForm({ key: "", value: "" }); }} className="btn-brand flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold"><Save size={12} /> ذخیره تنظیم</button>
-          </GlassCard>
+          </GlassCard>}
           <p className="text-xs text-[var(--ink-dim)]">مثال‌های کلید: <code>memory_active</code>، <code>reaction_active</code>، <code>quiz_active</code>، <code>puzzle_active</code>، <code>point_to_discount</code> (آرایه JSON).</p>
           {gameConfigLoading ? <div className="py-10 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-emerald-300" /></div> :
             <div className="space-y-3">
@@ -932,7 +1135,7 @@ export default function AdminPage() {
                         <p className="text-sm font-bold text-[var(--ink)]">{cfg.key}</p>
                         <p className="text-[11px] text-[var(--ink-dim)] break-all" dir="ltr">{typeof cfg.value === "object" ? JSON.stringify(cfg.value) : String(cfg.value)}</p>
                       </div>
-                      <button onClick={() => deleteGameConfig(cfg.key)} className="btn-glass rounded-lg p-2 text-red-300"><Trash2 size={13} /></button>
+                      {hasPerm("games", "manage") && <button onClick={() => deleteGameConfig(cfg.key)} className="btn-glass rounded-lg p-2 text-red-300"><Trash2 size={13} /></button>}
                     </div>
                   </GlassCard>
                 ))}
@@ -943,9 +1146,13 @@ export default function AdminPage() {
         {tab === "cms" && <motion.div key="cms" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[var(--ink)]">مدیریت محتوا</h2>
-            <p className="text-xs text-[var(--ink-dim)]">فقط مدیر کل می‌تواند محتوا را تغییر دهد</p>
+            <p className="text-xs text-[var(--ink-dim)]">{hasPerm("cms", "manage") ? "فقط مدیر کل/دارندگان دسترسی ویرایش می‌توانند محتوا را تغییر دهند" : "مشاهده‌گر — ویرایش محتوا نیازمند دسترسی مدیریت محتوا است"}</p>
           </div>
-          <CMSAdminPanel />
+          {hasPerm("cms", "manage") ? <CMSAdminPanel /> : (
+            <GlassCard className="p-6 text-center">
+              <p className="text-sm text-[var(--ink-dim)]">شما دسترسی ویرایش محتوا ندارید.</p>
+            </GlassCard>
+          )}
         </motion.div>}
 
         {/* ===== SETTINGS ===== */}
@@ -966,7 +1173,7 @@ export default function AdminPage() {
             </div>
           </GlassCard>
 
-          <GlassCard className="p-6 space-y-4">
+          {hasPerm("settings", "manage") && <GlassCard className="p-6 space-y-4">
             <h3 className="font-bold text-[var(--ink)] mb-2">تنظیمات درگاه پرداخت</h3>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-[var(--ink-dim)]">درگاه فعال</label>
@@ -986,7 +1193,7 @@ export default function AdminPage() {
             </div>
             <button onClick={savePaymentSettings} className="btn-brand flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold"><Save size={16} /> ذخیره تنظیمات پرداخت</button>
             {paymentSettingsMsg && <p className={`text-xs ${paymentSettingsMsg.includes("خطا") ? "text-red-400" : "text-emerald-300"}`}>{paymentSettingsMsg}</p>}
-          </GlassCard>
+          </GlassCard>}
         </motion.div>}
       </AnimatePresence>
     </div>

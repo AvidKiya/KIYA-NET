@@ -5,7 +5,15 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createToken, setSessionCookie, comparePassword } from "@/lib/auth";
 
-const DEFAULT_PASSWORD = "AvidKiya*2397*7370#";
+const getDefaultPasswordForRole = (role: string) => {
+  if (role === "SUPER_ADMIN") {
+    return process.env.SUPER_ADMIN_PASSWORDS || "";
+  }
+  if (role === "OPERATOR") {
+    return process.env.OPERATOR_ADMIN_PASSWORDS || "";
+  }
+  return "";
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,8 +53,9 @@ export async function POST(req: NextRequest) {
     if (user.passwordHash) {
       isValidPassword = await comparePassword(password, user.passwordHash);
     } else {
-      // First time login with default password
-      if (password === DEFAULT_PASSWORD) {
+      // First time login with env-based default password
+      const envPassword = getDefaultPasswordForRole(user.role);
+      if (envPassword && password === envPassword) {
         isValidPassword = true;
         needsPasswordChange = true;
       }
@@ -76,6 +85,7 @@ export async function POST(req: NextRequest) {
         lastName: user.lastName,
         role: user.role,
         assignedModules: user.assignedModules,
+        permissions: user.permissions,
         commissionRate: user.commissionRate,
       },
       needsPasswordChange: needsPasswordChange || user.mustChangePassword,

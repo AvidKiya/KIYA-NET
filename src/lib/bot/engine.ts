@@ -11,6 +11,11 @@ export type BotPlatform = "telegram" | "bale";
 
 export async function getBotToken(platform: BotPlatform): Promise<string | null> {
   const key = platform === "telegram" ? "TELEGRAM_BOT_TOKEN" : "BALE_BOT_TOKEN";
+  const envKey = platform === "telegram" ? "TOKEN_TELEGRAM" : "TOKEN_BALE";
+  // Env variable takes precedence; fallback to system_settings for backward compatibility.
+  const envValue = process.env[envKey];
+  if (envValue) return envValue;
+
   const rows = await db
     .select({ value: systemSettings.value })
     .from(systemSettings)

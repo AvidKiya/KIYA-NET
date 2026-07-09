@@ -38,13 +38,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const DEFAULT_PASSWORD = "AvidKiya*2397*7370#";
+    const envPassword = user.role === "SUPER_ADMIN"
+      ? process.env.SUPER_ADMIN_PASSWORDS
+      : user.role === "OPERATOR"
+      ? process.env.OPERATOR_ADMIN_PASSWORDS
+      : "";
     let currentValid = false;
 
     if (user.passwordHash) {
       currentValid = await comparePassword(currentPassword, user.passwordHash);
-    } else {
-      currentValid = currentPassword === DEFAULT_PASSWORD;
+    } else if (envPassword) {
+      currentValid = currentPassword === envPassword;
     }
 
     if (!currentValid) {
