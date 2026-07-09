@@ -39,4 +39,3 @@ export async function POST(req: NextRequest) {
   tickets.push(ticket);
   return NextResponse.json(ticket);
 }
-```

@@ -62,12 +62,3 @@ export function SmartChatbot() {
     </div>
   );
 }
-```
-
----
-
-### ۳. Report Export UI
-
-```tsx
-// src/components/ReportExporter.tsx
-```

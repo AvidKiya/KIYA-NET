@@ -50,12 +50,3 @@ export function SupportTicket() {
     </div>
   );
 }
-```
-
----
-
-### ۲. چت‌بات هوشمند ساده
-
-```tsx
-// src/components/SmartChatbot.tsx
-```

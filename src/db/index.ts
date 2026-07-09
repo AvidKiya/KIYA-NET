@@ -1,38 +1,44 @@
-// Cloudflare D1 + Drizzle adapter (Edge compatible)
-import { drizzle } from "drizzle-orm/d1";
+// Original Neon + Drizzle adapter (works on Cloudflare Pages Edge)
+import { drizzle } from "drizzle-orm/neon-http";
+import { neon } from "@neondatabase/serverless";
 import * as schema from "./schema";
 
-export type DbType = ReturnType<typeof drizzle<typeof schema>>;
+type DbType = ReturnType<typeof drizzle<typeof schema>>;
 
 let cachedDb: DbType | null = null;
 
-export function getDb(env?: { DB: D1Database }): DbType {
-  if (cachedDb) return cachedDb;
-
-  // For local development or when env is passed
-  const dbBinding = env?.DB || (globalThis as any).DB || (process.env as any).DB;
-
-  if (!dbBinding) {
-    throw new Error("D1 Database binding 'DB' is not available");
+function createDb(): DbType {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error("DATABASE_URL is required");
   }
 
-  const db = drizzle(dbBinding, { schema });
+  if (cachedDb) return cachedDb;
+
+  const sql = neon(databaseUrl);
+  const db = drizzle(sql, { schema });
   cachedDb = db;
   return db;
 }
 
-// Lazy proxy for easy usage in API routes
 export const db = new Proxy({} as DbType, {
   get(_target, prop) {
-    const instance = getDb();
+    const instance = createDb();
     const value = instance[prop as keyof DbType];
-    return typeof value === "function" ? value.bind(instance) : value;
+    if (typeof value === "function") {
+      return value.bind(instance);
+    }
+    return value;
   },
   set(_target, prop, value) {
-    const instance = getDb();
+    const instance = createDb();
     (instance as any)[prop] = value;
     return true;
   },
 });
+
+export function getDb(): DbType {
+  return createDb();
+}
 
 export { schema };

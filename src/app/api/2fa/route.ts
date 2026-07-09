@@ -9,17 +9,17 @@ export async function POST(req: NextRequest) {
   const { action, code } = await req.json();
 
   if (action === "enable") {
-    const result = await enable2FA(user.id);
+    const result = await enable2FA(user.userId);
     return NextResponse.json(result);
   }
 
   if (action === "verify") {
-    const valid = await verify2FA(user.id, code);
+    const valid = await verify2FA(user.userId, code);
     return NextResponse.json({ valid });
   }
 
   if (action === "disable") {
-    await disable2FA(user.id);
+    await disable2FA(user.userId);
     return NextResponse.json({ success: true });
   }
 
